@@ -13,6 +13,8 @@ Each guide lists known pitfalls when working with one specific game entity type.
 
 ## Format
 
+Movement gotcha: minimap visibility checks and default walker clicks must preserve the user's zoom. `Perspective.localToMinimap` already uses the live zoom; only the explicit-zoom overload should change it.
+
 Each entity guide is a numbered list of gotchas. Each entry follows this structure:
 
 ```

@@ -3525,7 +3525,11 @@ public class Rs2Walker {
     public static boolean walkMiniMap(WorldPoint worldPoint, double zoomDistance) {
         if (Microbot.getClient().getMinimapZoom() != zoomDistance)
             Microbot.getClient().setMinimapZoom(zoomDistance);
+        return walkMiniMap(worldPoint);
+    }
 
+    /** Walk using the current minimap zoom without changing the user's setting. */
+    public static boolean walkMiniMap(WorldPoint worldPoint) {
         Point point = Rs2MiniMap.worldToMinimap(worldPoint);
 
         if (point == null) return false;
@@ -3536,16 +3540,9 @@ public class Rs2Walker {
     }
 
 
-    public static boolean walkMiniMap(WorldPoint worldPoint) {
-        return walkMiniMap(worldPoint, 5);
-    }
-
-    private static boolean isMiniMapClickable(WorldPoint worldPoint, double zoomDistance) {
+    private static boolean isMiniMapClickable(WorldPoint worldPoint) {
         if (worldPoint == null) {
             return false;
-        }
-        if (Microbot.getClient().getMinimapZoom() != zoomDistance) {
-            Microbot.getClient().setMinimapZoom(zoomDistance);
         }
         Point point = Rs2MiniMap.worldToMinimap(worldPoint);
         return point != null && (disableWalkerUpdate || Rs2MiniMap.isPointInsideMinimap(point));
@@ -3881,7 +3878,7 @@ public class Rs2Walker {
         return findFurthestRawPathPointMatchingGated(rawPath, playerLoc, maxEuclidean, rawAnchorIndex,
                 candidate -> !candidate.equals(playerLoc)
                         && isKnownWalkableOrUnloaded(candidate)
-                        && isMiniMapClickable(candidate, 5));
+                        && isMiniMapClickable(candidate));
     }
 
     // rawPathStepDistance (pure) moved to geometry/WalkerPathGeometry (P1) alongside its only caller,
@@ -5830,7 +5827,7 @@ public class Rs2Walker {
     // findForwardRecoveryIndex extracted to recovery/RouteRecovery (P1 walker decomposition)
 
     private static boolean isMiniMapRecoveryClickable(WorldPoint worldPoint) {
-        return isMiniMapClickable(worldPoint, 5);
+        return isMiniMapClickable(worldPoint);
     }
 
     // interpolateClickableTarget extracted to recovery/RouteRecovery (P1)
