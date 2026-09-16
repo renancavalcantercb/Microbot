@@ -138,6 +138,8 @@ tasks.register<Test>("runDebugTests") {
 
     jvmArgs(
         "-Dfile.encoding=UTF-8",
+        "-Duser.language=en",
+        "-Duser.country=US",
         "-Duser.timezone=Europe/Brussels",
         "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"
     )
@@ -159,6 +161,8 @@ tasks.register<Test>("runTests") {
 
     jvmArgs(
         "-Dfile.encoding=UTF-8",
+        "-Duser.language=en",
+        "-Duser.country=US",
         "-Duser.timezone=Europe/Brussels"
     )
 
@@ -183,6 +187,8 @@ tasks.register<Test>("runUnitTests") {
 
     jvmArgs(
         "-Dfile.encoding=UTF-8",
+        "-Duser.language=en",
+        "-Duser.country=US",
         "-Duser.timezone=Europe/Brussels",
         "-ea"
     )
@@ -222,6 +228,8 @@ tasks.register<Test>("regenerateClientThreadGuardrailBaseline") {
 
     jvmArgs(
         "-Dfile.encoding=UTF-8",
+        "-Duser.language=en",
+        "-Duser.country=US",
         "-Duser.timezone=Europe/Brussels",
         "-Dmicrobot.guardrail.regenerate-baseline=true"
     )
@@ -249,6 +257,8 @@ tasks.register<Test>("regenerateQueryableTerminalBaseline") {
 
     jvmArgs(
         "-Dfile.encoding=UTF-8",
+        "-Duser.language=en",
+        "-Duser.country=US",
         "-Duser.timezone=Europe/Brussels",
         "-Dmicrobot.queryable-guardrail.regenerate-baseline=true"
     )
@@ -277,6 +287,8 @@ tasks.register<Test>("runClientThreadScanner") {
 
     jvmArgs(
         "-Dfile.encoding=UTF-8",
+        "-Duser.language=en",
+        "-Duser.country=US",
         "-Duser.timezone=Europe/Brussels",
         "-Dmicrobot.scanner.enabled=true"
     )
@@ -303,6 +315,8 @@ tasks.register<Test>("runIntegrationTest") {
 
     jvmArgs(
         "-Dfile.encoding=UTF-8",
+        "-Duser.language=en",
+        "-Duser.country=US",
         "-Duser.timezone=Europe/Brussels",
         "-ea"
     )
