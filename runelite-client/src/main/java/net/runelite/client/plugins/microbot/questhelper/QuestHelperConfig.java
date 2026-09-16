@@ -277,6 +277,17 @@ public interface QuestHelperConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+			keyName = "autoInteract",
+			name = "Auto interact",
+			description = "When enabled, automatically interacts with NPCs, objects, items, and dialogues. When disabled, only walks to quest objectives (GPS mode).",
+			section = microbotSection,
+			position = 3
+	)
+	default boolean autoInteract() {
+		return true;
+	}
+
 	@Getter
 	enum ObtainMissingItemsOption
 	{

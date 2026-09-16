@@ -94,6 +94,9 @@ public class PiratesTreasure extends BaseQuest {
                     return false;
                 }
                 Rs2Walker.walkTo(2917, 3161, 0);
+                if (!canInteract()) {
+                    return false;
+                }
                 sleep(2000);
                 collectBananas();
 
@@ -104,6 +107,9 @@ public class PiratesTreasure extends BaseQuest {
                     return false;
                 }
                 Rs2Walker.walkTo(2942, 3150, 0);
+                if (!canInteract()) {
+                    return false;
+                }
                 sleep(2000);
                 Rs2GameObject.interact(2072, "Search", 10);
                 sleep(6000);
@@ -121,6 +127,9 @@ public class PiratesTreasure extends BaseQuest {
 
             if (questStep.getText().contains("Search the crate in the back room of the Port Sarim food shop. Make sure you're wearing your white apron.")) {
                 if (Rs2Dialogue.isInDialogue()) {
+                    if (!canInteract()) {
+                        return false;
+                    }
                     Rs2Dialogue.clickContinue();
                 }
                 return true;
@@ -135,6 +144,9 @@ public class PiratesTreasure extends BaseQuest {
                     Rs2Walker.clearWalkingRoute("quest:pirates-treasure:detour-for-spade");
                     sleep(1200);
                     Rs2Walker.walkTo(2982, 3369, 0);
+                    if (!canInteract()) {
+                        return false;
+                    }
                     sleep(1200);
                     Rs2GroundItem.loot(SPADE);
                     sleep(1200);

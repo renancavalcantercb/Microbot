@@ -24,6 +24,9 @@ public class RomeoAndJuliet extends BaseQuest {
         QuestStep questStep = getQuestHelperPlugin().getSelectedQuest().getCurrentStep().getActiveStep();
         if (getQuestHelperPlugin().getSelectedQuest().getQuest().getId() == Quest.ROMEO__JULIET.getId()) {
             if (Rs2Dialogue.hasDialogueOptionTitle("Start the Romeo & Juliet quest?")) {
+                if (!canInteract()) {
+                    return false;
+                }
                 Rs2Dialogue.keyPressForDialogueOption("Yes.");
                 return false;
             }
@@ -111,6 +114,9 @@ public class RomeoAndJuliet extends BaseQuest {
             return false;
         }
         if (Rs2Walker.walkTo(3266, 3374, 0, 10)) {
+            if (!canInteract()) {
+                return false;
+            }
             Rs2GameObject.interact(new int[] {ObjectID.FAI_VARROCK_CADAVABUSH_2, ObjectID.FAI_VARROCK_CADAVABUSH_1, ObjectID.FAI_VARROCK_CADAVABUSH_0}, "take");
             Rs2Player.waitForWalking();
             Rs2Inventory.waitForInventoryChanges(2000);

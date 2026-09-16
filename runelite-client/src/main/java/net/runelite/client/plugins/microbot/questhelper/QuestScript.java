@@ -149,6 +149,24 @@ public class QuestScript extends Script {
         return canQuestWalk(step);
     }
 
+    public static boolean canQuestInteract() {
+        if (Microbot.getClient() == null) {
+            return false;
+        }
+
+        QuestHelperPlugin plugin = (QuestHelperPlugin) Microbot.getPluginManager().getPlugins().stream()
+                .filter(x -> x instanceof QuestHelperPlugin).findFirst().orElse(null);
+        if (plugin != null && plugin.getConfig() != null) {
+            return plugin.getConfig().autoInteract();
+        }
+
+        return true;
+    }
+
+    public boolean canInteract() {
+        return config != null ? config.autoInteract() : canQuestInteract();
+    }
+
     public boolean run(QuestHelperConfig config, QuestHelperPlugin mQuestPlugin) {
         this.config = config;
         this.mQuestPlugin = mQuestPlugin;
@@ -187,6 +205,10 @@ public class QuestScript extends Script {
 
                         for (var dialogChoice : dialogChoices) {
                             if (dialogChoice.getText().endsWith(choice.getChoice())) {
+                                if (!canInteract()) {
+                                    Microbot.status = "[Quest] Waiting for manual dialogue choice";
+                                    return;
+                                }
                                 Rs2Keyboard.keyPress(dialogChoice.getOnKeyListener()[7].toString().charAt(0));
                                 return;
                             }
@@ -195,6 +217,10 @@ public class QuestScript extends Script {
                 }
 
                 if (questStep != null && !questStep.getWidgetsToHighlight().isEmpty()) {
+                    if (!canInteract()) {
+                        Microbot.status = "[Quest] Waiting for manual widget interaction";
+                        return;
+                    }
                     var widgetHighlight = questStep.getWidgetsToHighlight().stream()
                             .filter(x -> x instanceof WidgetHighlight)
                             .map(x -> (WidgetHighlight) x)
@@ -241,6 +267,10 @@ public class QuestScript extends Script {
                 if (getQuestHelperPlugin().getSelectedQuest() != null && !Microbot.getClientThread().runOnClientThreadOptional(() ->
                         getQuestHelperPlugin().getSelectedQuest().isCompleted()).orElse(null)) {
                     if (Rs2Widget.isWidgetVisible(ComponentID.DIALOG_OPTION_OPTIONS) && getQuestHelperPlugin().getSelectedQuest().getQuest().getId() != Quest.COOKS_ASSISTANT.getId() && !Rs2Bank.isOpen()) {
+                        if (!canInteract()) {
+                            Microbot.status = "[Quest] Waiting for manual dialogue choice";
+                            return;
+                        }
                         boolean hasOption = Rs2Dialogue.handleQuestOptionDialogueSelection();
                         //if there is no quest option in the dialogue, just click player location to remove
                         // the dialogue to avoid getting stuck in an infinite loop of dialogues
@@ -287,6 +317,10 @@ public class QuestScript extends Script {
                     }
 
                     if (Rs2Dialogue.isInDialogue() && dialogueStartedStep == questStep) {
+                        if (!canInteract()) {
+                            Microbot.status = "[Quest] In dialogue (manual)";
+                            return;
+                        }
                         Rs2Walker.clearWalkingRoute("quest-helper:dialogue-space-step");
                         Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
                         return;
@@ -361,6 +395,9 @@ public class QuestScript extends Script {
     }
 
 	private boolean handleRequirements(DetailedQuestStep questStep) {
+		if (!canInteract()) {
+			return false;
+		}
 		var requirements = questStep.getRequirements();
 
 		for (var requirement : requirements) {
@@ -967,6 +1004,9 @@ public class QuestScript extends Script {
 	}
 
 	private boolean shouldObtainMissingItems() {
+		if (!canInteract()) {
+			return false;
+		}
 		if (Rs2Player.isIronman()) {
 			return false;
 		}
@@ -1273,6 +1313,10 @@ public class QuestScript extends Script {
 			if ((Rs2Walker.canReach(worldPoint) && worldPoint.distanceTo(Rs2Player.getWorldLocation()) < 2)
 					|| worldPoint.toWorldArea().hasLineOfSightTo(Microbot.getClient().getTopLevelWorldView(), Rs2Player.getWorldLocation().toWorldArea())
 					&& Rs2Camera.isTileOnScreen(LocalPoint.fromWorld(Microbot.getClient().getTopLevelWorldView(), worldPoint))) {
+				if (!canInteract()) {
+					Microbot.status = "[Quest] Arrived at item location (manual interact)";
+					return true;
+				}
 				lootGroundItem(targetItemId, 10);
 			} else {
 				if (canQuestWalk(questStep)) {
@@ -1280,6 +1324,10 @@ public class QuestScript extends Script {
 				}
 			}
 		} else {
+			if (!canInteract()) {
+				Microbot.status = "[Quest] Waiting for manual item pickup";
+				return true;
+			}
 			lootGroundItem(targetItemId, 20);
 		}
 
@@ -1307,6 +1355,9 @@ public class QuestScript extends Script {
 	}
 
 	private boolean lootGroundItem(int itemId, int radius) {
+		if (!canInteract()) {
+			return false;
+		}
 		Rs2TileItemModel item = new Rs2TileItemQueryable()
 				.withId(itemId)
 				.within(radius)
@@ -1380,6 +1431,11 @@ public class QuestScript extends Script {
                 && (Microbot.getClient().isInInstancedRegion() || (Rs2Walker.canReach(npc.getWorldLocation()) && npc.hasLineOfSight()))) {
             Rs2Walker.clearWalkingRoute("quest-helper:npc-step-visible-interact");
 
+            if (!canInteract()) {
+                Microbot.status = "[Quest] Arrived at NPC (manual interact)";
+                return true;
+            }
+
             if (step.getText().stream().anyMatch(x -> x.toLowerCase().contains("kill"))) {
                 if (!Rs2Combat.inCombat()) {
                     npc.click("Attack");
@@ -1439,6 +1495,9 @@ public class QuestScript extends Script {
                     Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint(), 2);
                 }
                 return false;
+            } else if (!canInteract()) {
+                Microbot.status = "[Quest] Arrived at NPC location (manual interact)";
+                return true;
             }
         }
         return true;
@@ -1529,6 +1588,11 @@ public class QuestScript extends Script {
         if (hasLineOfSightToObject(object) || object != null && (Rs2Camera.isTileOnScreen(object.getLocalLocation()) || object.getCanvasLocation() != null)) {
             Rs2Walker.clearWalkingRoute("quest-helper:object-step-interact");
 
+            if (!canInteract()) {
+                Microbot.status = "[Quest] Arrived at object (manual interact)";
+                return true;
+            }
+
             if (itemId == -1)
                 object.click(chooseCorrectObjectOption(step, object));
             else {
@@ -1558,6 +1622,10 @@ public class QuestScript extends Script {
         else if (!Rs2Player.getWorldLocation().equals(step.getDefinedPoint().getWorldPoint()))
             Rs2Walker.walkFastCanvas(step.getDefinedPoint().getWorldPoint());
         else {
+            if (!canInteract()) {
+                Microbot.status = "[Quest] Arrived at dig location (manual interact)";
+                return true;
+            }
             Rs2Inventory.interact(ItemID.SPADE, "Dig");
             return true;
         }
@@ -1567,6 +1635,10 @@ public class QuestScript extends Script {
 
     private boolean applyPuzzleStep(PuzzleStep step) {
         if (!step.getHighlightedButtons().isEmpty()) {
+            if (!canInteract()) {
+                Microbot.status = "[Quest] Waiting for manual puzzle interaction";
+                return false;
+            }
             var widgetDetails = step.getHighlightedButtons().stream().filter(x -> Rs2Widget.isWidgetVisible(x.groupID, x.childID)).findFirst().orElse(null);
             if (widgetDetails != null) {
                 Rs2Widget.clickWidget(widgetDetails.groupID, widgetDetails.childID);
@@ -1694,6 +1766,10 @@ public class QuestScript extends Script {
 
 				if (itemRequirement.shouldHighlightInInventory(Microbot.getClient())
 						&& Rs2Inventory.contains(itemRequirement.getAllIds().stream().mapToInt(i -> i).toArray())) {
+					if (!canInteract()) {
+						Microbot.status = "[Quest] Waiting for manual item interaction";
+						return false;
+					}
 					var itemId = itemRequirement.getAllIds().stream().filter(Rs2Inventory::contains).findFirst().orElse(-1);
 					Rs2Inventory.interact(itemId, chooseCorrectItemOption(conditionalStep, itemId));
 					sleep(100, 200);
@@ -1702,6 +1778,9 @@ public class QuestScript extends Script {
 				}
 
 				if (!hasItemRequirementOnPlayer(itemRequirement)) {
+					if (!canInteract()) {
+						continue;
+					}
 					return attemptToAcquireRequirementItem(conditionalStep, itemRequirement);
 				}
 			}
@@ -1711,6 +1790,12 @@ public class QuestScript extends Script {
             if (!canQuestWalk(conditionalStep)) {
                 return false;
             }
+            if (conditionalStep.getDefinedPoint().getWorldPoint().distanceTo(Rs2Player.getWorldLocation()) <= 2) {
+                if (!canInteract()) {
+                    Microbot.status = "[Quest] Arrived at objective (manual interact)";
+                    return false;
+                }
+            }
             if (!Rs2Walker.walkTo(conditionalStep.getDefinedPoint().getWorldPoint()))
                 return true;
         }
@@ -1719,7 +1804,9 @@ public class QuestScript extends Script {
 				&& conditionalStep.getDefinedPoint().getWorldPoint().toWorldArea().hasLineOfSightTo(Microbot.getClient().getTopLevelWorldView(), Rs2Player.getWorldLocation())) {
 			if (conditionalStep.getQuestHelper().getQuest() == QuestHelperQuest.ZOGRE_FLESH_EATERS) {
 				if (conditionalStep.getIconItemID() == 4836) { // strange potion
-					lootGroundItem(ItemID.CUP_OF_TEA_4838, 20);
+					if (canInteract()) {
+						lootGroundItem(ItemID.CUP_OF_TEA_4838, 20);
+					}
 				}
 			}
 		}
@@ -1728,6 +1815,10 @@ public class QuestScript extends Script {
 	}
 
     private boolean applyWidgetStep(WidgetStep step) {
+        if (!canInteract()) {
+            Microbot.status = "[Quest] Waiting for manual widget interaction";
+            return false;
+        }
         var widgetDetails = step.getWidgetDetails().get(0);
         var widget = Microbot.getClient().getWidget(widgetDetails.groupID, widgetDetails.childID);
 

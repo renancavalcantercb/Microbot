@@ -13,4 +13,8 @@ public abstract class BaseQuest implements IQuest {
     protected boolean canWalk() {
         return QuestScript.canQuestWalk();
     }
+
+    protected boolean canInteract() {
+        return QuestScript.canQuestInteract();
+    }
 }

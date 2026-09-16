@@ -28,6 +28,9 @@ public class RuneMysteries extends BaseQuest {
                     return false;
                 }
                 if (Rs2Dialogue.isInDialogue()) {
+                    if (!canInteract()) {
+                        return false;
+                    }
                     Rs2Dialogue.clickContinue();
                     return false;
                 }
@@ -37,6 +40,9 @@ public class RuneMysteries extends BaseQuest {
                         Rs2Walker.walkTo(3253, 3401, 0, 3);
                     }
                 } else if (!Rs2Dialogue.isInDialogue()) {
+                    if (!canInteract()) {
+                        return false;
+                    }
                     Rs2Npc.interact(npc, "Talk-to");
                 }
                 return false;
@@ -48,9 +54,15 @@ public class RuneMysteries extends BaseQuest {
             && ((ItemRequirement) objectStep.getRequirements().stream().findFirst().get()).getId() == ItemID.AIR_TALISMAN) {
                 if (!Rs2Inventory.hasItem(ItemID.AIR_TALISMAN)) {
                     if (Rs2Dialogue.hasSelectAnOption()) {
+                        if (!canInteract()) {
+                            return false;
+                        }
                         Rs2Dialogue.keyPressForDialogueOption("What did you want me to do again?");
                         return false;
                     } else if (Rs2Dialogue.isInDialogue()) {
+                        if (!canInteract()) {
+                            return false;
+                        }
                         Rs2Dialogue.clickContinue();
                         return false;
                     }
@@ -60,11 +72,17 @@ public class RuneMysteries extends BaseQuest {
                             Rs2Walker.walkTo(3209, 3222, 1, 3);
                         }
                     } else {
+                        if (!canInteract()) {
+                            return false;
+                        }
                         Rs2Npc.interact(npc, "Talk-to");
                     }
                     return false;
                 }
             } else if (Rs2Dialogue.hasDialogueOption("Climb down the stairs.")) {
+                if (!canInteract()) {
+                    return false;
+                }
                 Rs2Dialogue.keyPressForDialogueOption("Climb down the stairs.");
                 return false;
             }
@@ -77,6 +95,9 @@ public class RuneMysteries extends BaseQuest {
                 ItemRequirement itemRequirement = (ItemRequirement) npcStep.getRequirements().stream().findFirst().get();
                 if (!Rs2Inventory.hasItem(itemRequirement.getId())) {
                     if (Rs2Dialogue.isInDialogue()) {
+                        if (!canInteract()) {
+                            return false;
+                        }
                         Rs2Dialogue.clickContinue();
                         return false;
                     }
@@ -86,11 +107,17 @@ public class RuneMysteries extends BaseQuest {
                             Rs2Walker.walkTo(3105, 9571, 0, 3);
                         }
                     } else if (!Rs2Dialogue.isInDialogue()) {
+                        if (!canInteract()) {
+                            return false;
+                        }
                         Rs2Npc.interact(npc, "Talk-to");
                     }
                     return false;
                 }
             } else if (Rs2Dialogue.hasDialogueOption("Anything useful in that package I gave you?")) {
+                if (!canInteract()) {
+                    return false;
+                }
                 Rs2Dialogue.keyPressForDialogueOption("Anything useful in that package I gave you?");
                 return false;
             }
@@ -98,6 +125,9 @@ public class RuneMysteries extends BaseQuest {
             //ignore error
         }
         if (Rs2Dialogue.hasDialogueOption("Go ahead.")) {
+            if (!canInteract()) {
+                return false;
+            }
             Rs2Dialogue.keyPressForDialogueOption("Go ahead.");
             return false;
         }
