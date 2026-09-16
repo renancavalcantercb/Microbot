@@ -1,5 +1,5 @@
 # Rs2Keyboard Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 The `Rs2Keyboard` class simulates keyboard actions such as typing strings, pressing, holding, and releasing keys. It directly interacts with the game's canvas to dispatch keyboard events.
 

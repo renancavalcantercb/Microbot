@@ -1,5 +1,5 @@
 # Rs2Prayer Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 The `Rs2Prayer` class offers functionalities to manage and interact with prayer abilities in the game. It includes methods to toggle prayers on or off, check if prayers are active, and determine if the player is out of prayer points.
 

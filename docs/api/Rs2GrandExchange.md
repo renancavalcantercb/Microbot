@@ -1,6 +1,6 @@
 # Rs2GrandExchange Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2GrandExchange` class provides methods for interacting with the Grand Exchange in the game. It allows for buying, selling, collecting offers, and managing Grand Exchange slots.

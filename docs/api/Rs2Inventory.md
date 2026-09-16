@@ -1,5 +1,5 @@
 # Rs2Inventory Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 `Rs2Inventory` manages the player's inventory in the game, offering methods for interacting with items, checking inventory status, and performing complex item manipulations.
 

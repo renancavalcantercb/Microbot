@@ -2,6 +2,8 @@
 
 This is the documentation entry point. Keep it short: it should route readers to the owner docs instead of duplicating commands, API examples, or volatile implementation details.
 
+For the complete list of documents, see [INDEX.md](INDEX.md).
+
 ## For Users
 - Installation and launch options: [installation.md](installation.md)
 - Gallery: [gallery.md](gallery.md)
@@ -10,6 +12,7 @@ This is the documentation entry point. Keep it short: it should route readers to
 - Local setup and build commands: [development.md](development.md)
 - Runtime architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Queryable cache guide: [../runelite-client/src/main/java/net/runelite/client/plugins/microbot/api/QUERYABLE_API.md](../runelite-client/src/main/java/net/runelite/client/plugins/microbot/api/QUERYABLE_API.md)
+- Helper class reference: [api/README.md](api/README.md)
 - Entity utility gotchas: [entity-guides/README.md](entity-guides/README.md)
 - Architecture decisions: [decisions/](decisions/)
 

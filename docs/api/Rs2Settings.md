@@ -1,6 +1,6 @@
 # Rs2Settings Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Settings` class provides methods to interact with and toggle various in-game settings, such as shift-dropping, hiding roofs, notifications, and audio settings.

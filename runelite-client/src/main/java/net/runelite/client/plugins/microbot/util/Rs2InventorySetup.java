@@ -760,7 +760,7 @@ public class Rs2InventorySetup {
     }
 
     /**
-     * Loads the equipment setup from the bank.
+     * Loads the equipment setup from the bank, withdrawing all missing gear before equipping it.
      *
      * @return true if the equipment matches the setup after loading, false otherwise.
      */
@@ -830,26 +830,34 @@ public class Rs2InventorySetup {
 
         if (hasExtraGearEquipped) {
             logSetup(Level.DEBUG, "extra gear not in setup — deposit equipment");
-            Rs2Bank.depositEquipment();
-            sleepUntil(() -> Rs2Equipment.items().stream().noneMatch(Objects::nonNull));
+            if (!Rs2Bank.depositEquipment()
+                    || !sleepUntil(() -> Rs2Equipment.items().stream().noneMatch(Objects::nonNull), 5000)) {
+                return false;
+            }
         }
 
-		for (InventorySetupsItem item : inventorySetup.getEquipment()) {
-			if (isMainSchedulerCancelled()) break;
-			if (InventorySetupsItem.itemIsDummy(item)) continue;
+		List<InventorySetupsItem> pendingEquipment = getEquipmentItems().stream()
+				.filter(item -> !Rs2Equipment.isWearing(item.getName()))
+				.collect(Collectors.toList());
+		long slotsNeeded = pendingEquipment.stream().filter(item -> !hasEquipmentInInventory(item)).count();
+		// Supplies retained from the preset may leave too little room for the whole equipment batch.
+		if (Rs2Inventory.emptySlotCount() < slotsNeeded) {
+			int epochBeforeDeposit = Rs2Bank.getBankLiveEpoch();
+			if (!Rs2Bank.depositAll() || !Rs2Bank.syncBankInventoryAfterChange(epochBeforeDeposit)) {
+				return false;
+			}
+		}
+
+		for (InventorySetupsItem item : pendingEquipment) {
+			if (isMainSchedulerCancelled()) return false;
 
 			String lowerCaseName = item.getName().toLowerCase();
 
 			boolean isFuzzy = item.isFuzzy();
 			Object identifier = isFuzzy ? item.getName().toLowerCase() : item.getId();
 
-			// Check if already equipped
-			if (Rs2Equipment.isWearing(item.getName())) continue;
-
 			// Check in inventory
-			boolean inInventory = isFuzzy
-				? Rs2Inventory.hasItem((String) identifier) || Rs2Inventory.hasItemAmount((String) identifier, item.getQuantity())
-				: Rs2Inventory.hasItem((int) identifier) || Rs2Inventory.hasItemAmount((int) identifier, item.getQuantity());
+			if (hasEquipmentInInventory(item)) continue;
 
 			// Check in bank (name fallback covers stale preset ids vs live bank row ids)
 			boolean inBank = isFuzzy
@@ -859,47 +867,49 @@ public class Rs2InventorySetup {
 				inBank = Rs2Bank.hasBankItem(lowerCaseName, item.getQuantity(), false);
 			}
 
-			if (!inInventory && !inBank) {
+			if (!inBank) {
 				int bankGear = bankQtyForPresetRow(item, lowerCaseName, isFuzzy);
 				int invGear = isFuzzy ? Rs2Inventory.itemQuantity((String) identifier) : Rs2Inventory.itemQuantity((int) identifier);
 				logSetup(Level.WARN,
 						"missing gear %s | bank=%d | inv=%d | need=%d — pausing",
 						item.getName(), bankGear, invGear, item.getQuantity());
 				Microbot.pauseAllScripts.compareAndSet(false, true);
-				continue;
+				return false;
 			}
 
-			if (inInventory) {
-				if (isFuzzy) {
-					Rs2Bank.wearItem((String) identifier);
-				} else {
-					Rs2Bank.wearItem((int) identifier);
-				}
-				sleepUntil(() -> Rs2Equipment.isWearing(item.getName()));
-				continue;
-			}
-
+			if (!Rs2Bank.setWithdrawAs(false)) return false;
+			boolean withdrawn;
 			if (item.getQuantity() > 1) {
 				if (isFuzzy) {
-					Rs2Bank.withdrawXAndEquip((String) identifier, item.getQuantity());
+					withdrawn = Rs2Bank.withdrawX((String) identifier, item.getQuantity());
 				} else {
-					Rs2Bank.withdrawXAndEquip((int) identifier, item.getQuantity());
+					withdrawn = Rs2Bank.withdrawX((int) identifier, item.getQuantity());
 				}
 			} else {
 				if (isFuzzy) {
-					Rs2Bank.withdrawAndEquip((String) identifier);
+					withdrawn = Rs2Bank.withdrawOne((String) identifier);
 				} else {
-					Rs2Bank.withdrawAndEquip((int) identifier);
+					withdrawn = Rs2Bank.withdrawOne((int) identifier);
 				}
 			}
 
-			sleepUntil(() -> Rs2Equipment.isWearing(item.getName()));
+			if (!withdrawn || !sleepUntil(() -> hasEquipmentInInventory(item), 5000)) return false;
 		}
 
-        sleep(800, 1200);
+		for (InventorySetupsItem item : pendingEquipment) {
+			if (isMainSchedulerCancelled()) return false;
+			boolean equipped = item.isFuzzy()
+					? Rs2Bank.wearItem(item.getName().toLowerCase())
+					: Rs2Bank.wearItem(item.getId());
+			if (!equipped || !sleepUntil(() -> Rs2Equipment.isWearing(item.getName()), 5000)) return false;
+		}
 
         return doesEquipmentMatch();
     }
+
+	private static boolean hasEquipmentInInventory(InventorySetupsItem item) {
+		return item.isFuzzy() ? Rs2Inventory.hasItem(item.getName().toLowerCase()) : Rs2Inventory.hasItem(item.getId());
+	}
 
     /**
      * Wears the equipment items defined in the inventory setup.

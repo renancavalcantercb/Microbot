@@ -1,6 +1,6 @@
 # Rs2Spells Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Spells` enum defines all supported spells from Modern, Ancient, Lunar, and Arceuus spellbooks. Each enum constant represents a spell and contains information about its required runes, level, and spellbook.

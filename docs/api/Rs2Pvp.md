@@ -1,6 +1,6 @@
 # Rs2Pvp Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Pvp` class provides utility methods for player-vs-player (PVP) related checks, such as wilderness levels, attackability of other players, and risk calculation.

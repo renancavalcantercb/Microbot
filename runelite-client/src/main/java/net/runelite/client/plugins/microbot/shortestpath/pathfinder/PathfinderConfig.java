@@ -210,7 +210,17 @@ public class PathfinderConfig {
     // Used to include bank items when searching for item requirements
     private volatile boolean useBankItems = false;
 
+    @Getter
+    @Setter
+    private volatile boolean bankTeleportsOnly = false;
+
+    public boolean canUseBankFor(TransportType type) {
+        return useBankItems && (!bankTeleportsOnly || type == TransportType.TELEPORTATION_ITEM
+                || type == TransportType.TELEPORTATION_SPELL);
+    }
+
     private Set<Integer> refreshAvailableItemIds;
+    private Set<Integer> refreshBankItemIds;
     private int[] refreshBoostedLevels;
     private Map<String, int[]> refreshCurrencyCache;
     // Varplayer values snapshot for the current refreshTransports pass. Without it, every varp
@@ -453,7 +463,7 @@ public class PathfinderConfig {
                 && !QuestState.NOT_STARTED.equals(Rs2Player.getQuestState(Quest.FAIRYTALE_II__CURE_A_QUEEN))
                 && (Rs2Inventory.contains(ItemID.DRAMEN_STAFF, ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF)
                 || Rs2Equipment.isWearing(ItemID.DRAMEN_STAFF, ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF)
-                || (ShortestPathPlugin.getPathfinderConfig().useBankItems && (Rs2Bank.hasItem(ItemID.DRAMEN_STAFF) || Rs2Bank.hasItem(ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF)))
+                || (canUseBankFor(TransportType.FAIRY_RING) && (Rs2Bank.hasItem(ItemID.DRAMEN_STAFF) || Rs2Bank.hasItem(ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF)))
                 || Microbot.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE) == 1);
         useGnomeGliders = ShortestPathPlugin.override("useGnomeGliders", config.useGnomeGliders())
                 && QuestState.FINISHED.equals(Rs2Player.getQuestState(Quest.THE_GRAND_TREE));
@@ -541,11 +551,13 @@ public class PathfinderConfig {
 
         long cacheStart = System.currentTimeMillis();
         refreshAvailableItemIds = new HashSet<>();
+        refreshBankItemIds = new HashSet<>();
         refreshCurrencyCache = new HashMap<>();
         Rs2Inventory.items().forEach(item -> refreshAvailableItemIds.add(item.getId()));
         Rs2Equipment.all().forEach(item -> refreshAvailableItemIds.add(item.getId()));
         if (useBankItems) {
-            Rs2Bank.getAll().forEach(item -> refreshAvailableItemIds.add(item.getId()));
+            Rs2Bank.getAll().filter(item -> item.getQuantity() > 0)
+                    .forEach(item -> refreshBankItemIds.add(item.getId()));
         }
 
         Set<Integer> varbitIds = new HashSet<>();
@@ -726,6 +738,7 @@ public class PathfinderConfig {
         long similarTime = System.currentTimeMillis() - similarStart;
 
         refreshAvailableItemIds = null;
+        refreshBankItemIds = null;
         refreshBoostedLevels = null;
         refreshCurrencyCache = null;
         refreshVarplayerValues = null;
@@ -1287,7 +1300,7 @@ public class PathfinderConfig {
             if (refreshCurrencyCache != null) {
                 int[] cached = refreshCurrencyCache.computeIfAbsent(transport.getCurrencyName(), name -> {
                     int invCount = Rs2Inventory.itemQuantity(name);
-                    int bankCount = useBankItems ? Rs2Bank.count(name) : 0;
+                    int bankCount = canUseBankFor(TransportType.TRANSPORT) ? Rs2Bank.count(name) : 0;
                     return new int[]{invCount, bankCount};
                 });
                 if (cached[0] < transport.getCurrencyAmount() && cached[1] < transport.getCurrencyAmount()) {
@@ -1295,7 +1308,7 @@ public class PathfinderConfig {
                     return false;
                 }
             } else if (!Rs2Inventory.hasItemAmount(transport.getCurrencyName(), transport.getCurrencyAmount())
-                    && !(useBankItems && Rs2Bank.count(transport.getCurrencyName()) >= transport.getCurrencyAmount())) {
+                    && !(canUseBankFor(TransportType.TRANSPORT) && Rs2Bank.count(transport.getCurrencyName()) >= transport.getCurrencyAmount())) {
                 log.debug("Transport ( O: {} D: {} ) requires {} x {}", transport.getOrigin(), transport.getDestination(), transport.getCurrencyAmount(), transport.getCurrencyName());
                 return false;
             }
@@ -1521,12 +1534,14 @@ public class PathfinderConfig {
             return transport.getItemIdRequirements()
                     .stream()
                     .flatMap(Collection::stream)
-                    .anyMatch(refreshAvailableItemIds::contains);
+                    .anyMatch(itemId -> refreshAvailableItemIds.contains(itemId)
+                            || (canUseBankFor(transport.getType()) && refreshBankItemIds.contains(itemId)));
         }
         return transport.getItemIdRequirements()
                 .stream()
                 .flatMap(Collection::stream)
-                .anyMatch(itemId -> Rs2Equipment.isWearing(itemId) || Rs2Inventory.hasItem(itemId) || (ShortestPathPlugin.getPathfinderConfig().useBankItems && Rs2Bank.hasItem(itemId)));
+                .anyMatch(itemId -> Rs2Equipment.isWearing(itemId) || Rs2Inventory.hasItem(itemId)
+                        || (canUseBankFor(transport.getType()) && Rs2Bank.hasItem(itemId)));
     }
 
     /**
@@ -1548,7 +1563,8 @@ public class PathfinderConfig {
                 : transport.getDisplayInfo();
         Rs2Spells rs2Spell = Rs2Magic.getRs2Spell(displayInfo);
         if (rs2Spell == null) return false;
-        return Rs2Magic.hasRequiredRunes(rs2Spell, RuneFilter.builder().includeBank(useBankItems).build());
+        return Rs2Magic.hasRequiredRunes(rs2Spell, RuneFilter.builder()
+                .includeBank(canUseBankFor(TransportType.TELEPORTATION_SPELL)).build());
 //        return Rs2Magic.quickCanCast(displayInfo);
     }
 
@@ -1567,7 +1583,8 @@ public class PathfinderConfig {
      */
     private boolean hasChronicleCharges() {
         if (!Rs2Equipment.isWearing(ItemID.CHRONICLE)) {
-            if (!Rs2Inventory.hasItem(ItemID.CHRONICLE))
+            if (!Rs2Inventory.hasItem(ItemID.CHRONICLE)
+                    && !(canUseBankFor(TransportType.TELEPORTATION_ITEM) && Rs2Bank.hasItem(ItemID.CHRONICLE)))
                 return false;
         }
 
@@ -1876,6 +1893,7 @@ public class PathfinderConfig {
                 useTeleportationItems,
                 ignoreTeleportAndItems,
                 useBankItems,
+                bankTeleportsOnly,
                 useNpcs,
                 invFp,
                 members,
