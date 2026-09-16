@@ -759,23 +759,81 @@ public class Rs2Dialogue {
     }
 
     /**
-     * Detects a quest-start prompt (e.g. "Would you like to start the Cook's Assistant quest?")
-     * and clicks the "Yes" option. Matches case-insensitively on prefix + suffix + keyword
-     * so it catches the OSRS convention across quests without picking up unrelated prompts
-     * like "Would you like to start a fire?".
+     * Detects a quest-start prompt (e.g. "Would you like to start the Cook's Assistant quest?",
+     * "Start the Dig Site quest?", "Start the Digsite quest?") and clicks the affirmative option ("Yes").
      *
-     * @return true if a quest-start prompt was detected and Yes was clicked
+     * @return true if a quest-start prompt was detected and an option was clicked
      */
     public static boolean acceptQuestStartDialogue() {
+        return acceptQuestStartDialogue(null);
+    }
+
+    /**
+     * Detects a quest-start prompt, optionally checking against the specific quest name,
+     * and clicks the affirmative option ("Yes").
+     *
+     * @param questName optional quest name from Quest Helper (e.g. "The Dig Site")
+     * @return true if a quest-start prompt was detected and an option was clicked
+     */
+    public static boolean acceptQuestStartDialogue(String questName) {
         String question = getQuestion();
+        if (!isQuestStartQuestion(question, questName)) {
+            return false;
+        }
+
+        if (clickOption("Yes", false)) {
+            return true;
+        }
+        if (clickOption("Ok", false)) {
+            return true;
+        }
+        if (clickOption("Accept", false)) {
+            return true;
+        }
+
+        return keyPressForDialogueOption(1);
+    }
+
+    /**
+     * Evaluates whether a dialogue question corresponds to a quest-start confirmation prompt.
+     *
+     * @param question the dialogue question text
+     * @param questName optional quest name from Quest Helper
+     * @return true if the question matches a quest-start prompt
+     */
+    public static boolean isQuestStartQuestion(String question, String questName) {
         if (question == null) return false;
 
         String q = question.toLowerCase().trim();
-        if (!q.startsWith("would you like to start")) return false;
-        if (!q.contains("quest")) return false;
-        if (!q.endsWith("?")) return false;
+        String cleanQ = q.replaceAll("[?.!]+$", "").trim();
 
-        return clickOption("Yes", false);
+        if (cleanQ.contains("start") && cleanQ.contains("quest")) {
+            return true;
+        }
+        if (cleanQ.startsWith("start the ") || cleanQ.startsWith("start ")) {
+            if (cleanQ.contains("quest") || isMatchingQuestName(cleanQ, questName)) {
+                return true;
+            }
+        }
+        if (cleanQ.startsWith("would you like to start") || cleanQ.startsWith("do you want to start")
+                || cleanQ.startsWith("are you sure you want to start")) {
+            if (cleanQ.contains("quest") || isMatchingQuestName(cleanQ, questName)) {
+                return true;
+            }
+        }
+        if (questName != null && isMatchingQuestName(cleanQ, questName) && (cleanQ.contains("start") || cleanQ.contains("begin"))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isMatchingQuestName(String cleanQ, String questName) {
+        if (questName == null || questName.isBlank()) return false;
+        String name = questName.toLowerCase().trim();
+        String withoutThe = name.replace("the ", "").trim();
+        String noSpaces = withoutThe.replace(" ", "");
+        return cleanQ.contains(name) || cleanQ.contains(withoutThe) || cleanQ.contains(noSpaces);
     }
 
 	/**

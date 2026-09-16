@@ -7,6 +7,7 @@ import net.runelite.api.Quest;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.questhelper.QuestHelperPlugin;
+import net.runelite.client.plugins.microbot.questhelper.QuestScript;
 import net.runelite.client.plugins.microbot.questhelper.steps.QuestStep;
 import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
 import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
@@ -89,6 +90,9 @@ public class PiratesTreasure extends BaseQuest {
                 return true;
             }
             if (questStep.getText().contains("Right-click fill the rest of the crate with bananas, then talk to Luthas.")) {
+                if (!canWalk()) {
+                    return false;
+                }
                 Rs2Walker.walkTo(2917, 3161, 0);
                 sleep(2000);
                 collectBananas();
@@ -96,6 +100,9 @@ public class PiratesTreasure extends BaseQuest {
                 return true;
             }
             if (questStep.getText().contains("Talk to Luthas and tell him you finished filling the crate.")) {
+                if (!canWalk()) {
+                    return false;
+                }
                 Rs2Walker.walkTo(2942, 3150, 0);
                 sleep(2000);
                 Rs2GameObject.interact(2072, "Search", 10);
@@ -122,6 +129,9 @@ public class PiratesTreasure extends BaseQuest {
             if (questStep.getText().contains("Dig in the middle of the cross in Falador Park, and kill the Gardener (level 4) who appears. Once killed, dig again.")) {
                 if (!Rs2Inventory.contains(SPADE)) {
                     System.out.println("here2");
+                    if (!canWalk()) {
+                        return false;
+                    }
                     Rs2Walker.clearWalkingRoute("quest:pirates-treasure:detour-for-spade");
                     sleep(1200);
                     Rs2Walker.walkTo(2982, 3369, 0);
@@ -153,6 +163,9 @@ public class PiratesTreasure extends BaseQuest {
         });
 
         if (Rs2Inventory.count(BANANA) >= 10) {
+            if (!QuestScript.canQuestWalk()) {
+                return;
+            }
             Rs2Walker.walkTo(2942, 3150, 0);
             sleep(2000);
             Rs2GameObject.interact(2072, "Fill", 10);
@@ -162,6 +175,9 @@ public class PiratesTreasure extends BaseQuest {
 
     private static void pickBananasAt(int[][] locations) {
         for (int[] location : locations) {
+            if (!QuestScript.canQuestWalk()) {
+                return;
+            }
             Rs2Walker.walkTo(location[0], location[1], location[2]);
             sleep(2000);
             pickBananaTree();

@@ -19,6 +19,7 @@ import net.runelite.client.plugins.microbot.questhelper.requirements.item.ItemRe
 import net.runelite.client.plugins.microbot.questhelper.steps.*;
 import net.runelite.client.plugins.microbot.questhelper.steps.widget.WidgetHighlight;
 import net.runelite.client.plugins.microbot.shortestpath.ShortestPathPlugin;
+import net.runelite.client.plugins.microbot.shortestpath.ShortestPathScript;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.camera.Rs2Camera;
 import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
@@ -97,8 +98,56 @@ public class QuestScript extends Script {
      * transition from in-dialogue to not-in-dialogue; zero means no cooldown.
      */
     private long dialogueCooldownEndsAt = 0;
+    private int unhandledDialogueOptionCount = 0;
 
 
+
+    private static volatile QuestStep lastClearedQuestStep = null;
+    private static volatile long lastObservedUserClearAtMs = 0;
+    private static volatile QuestStep lastActiveStep = null;
+
+    public static boolean canQuestWalk(QuestStep step) {
+        if (Microbot.getClient() == null) {
+            return false;
+        }
+
+        QuestHelperPlugin plugin = (QuestHelperPlugin) Microbot.getPluginManager().getPlugins().stream()
+                .filter(x -> x instanceof QuestHelperPlugin).findFirst().orElse(null);
+        if (plugin != null && plugin.getConfig() != null && !plugin.getConfig().syncWebWalkerWalking()) {
+            return true;
+        }
+
+        if (!ShortestPathPlugin.isWalkingEnabled()) {
+            return false;
+        }
+
+        long userClearAt = ShortestPathScript.getLastUserClearAtMs();
+        if (userClearAt > 0) {
+            if (userClearAt != lastObservedUserClearAtMs) {
+                lastObservedUserClearAtMs = userClearAt;
+                lastClearedQuestStep = step;
+            }
+        } else {
+            lastClearedQuestStep = null;
+            lastObservedUserClearAtMs = 0;
+        }
+
+        if (step != null && step == lastClearedQuestStep) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static boolean canQuestWalk() {
+        QuestHelperPlugin plugin = (QuestHelperPlugin) Microbot.getPluginManager().getPlugins().stream()
+                .filter(x -> x instanceof QuestHelperPlugin).findFirst().orElse(null);
+        QuestStep step = null;
+        if (plugin != null && plugin.getSelectedQuest() != null && plugin.getSelectedQuest().getCurrentStep() != null) {
+            step = plugin.getSelectedQuest().getCurrentStep().getActiveStep();
+        }
+        return canQuestWalk(step);
+    }
 
     public boolean run(QuestHelperConfig config, QuestHelperPlugin mQuestPlugin) {
         this.config = config;
@@ -116,6 +165,11 @@ public class QuestScript extends Script {
                     Rs2Player.waitForAnimation();
 
                 QuestStep questStep = getQuestHelperPlugin().getSelectedQuest().getCurrentStep().getActiveStep();
+
+                if (questStep != lastActiveStep) {
+                    lastActiveStep = questStep;
+                    lastClearedQuestStep = null;
+                }
 
                 if (Rs2Dialogue.isInDialogue() && dialogueStartedStep == null)
                     dialogueStartedStep = questStep;
@@ -191,18 +245,33 @@ public class QuestScript extends Script {
                         //if there is no quest option in the dialogue, just click player location to remove
                         // the dialogue to avoid getting stuck in an infinite loop of dialogues
                         if (!hasOption) {
-                            if (Rs2Dialogue.acceptQuestStartDialogue()) {
+                            String questName = getQuestHelperPlugin().getSelectedQuest() != null && getQuestHelperPlugin().getSelectedQuest().getQuest() != null
+                                    ? getQuestHelperPlugin().getSelectedQuest().getQuest().getName()
+                                    : null;
+                            if (Rs2Dialogue.acceptQuestStartDialogue(questName)) {
+                                unhandledDialogueOptionCount = 0;
+                                sleep(600, 1000);
                                 return;
                             }
                             if (getQuestHelperPlugin().getSelectedQuest() != null &&
                                     getQuestHelperPlugin().getSelectedQuest().getQuest().getId() == Quest.IMP_CATCHER.getId()
                                     && Microbot.getClient().getTopLevelWorldView().getPlane() == 1) {
                                 Rs2Dialogue.keyPressForDialogueOption(1); // presses option 1
-                                sleep(1200,1800);
+                                sleep(1200, 1800);
+                                unhandledDialogueOptionCount = 0;
+                                return;
                             }
-                            Rs2Walker.walkFastCanvas(Rs2Player.getWorldLocation());
+                            unhandledDialogueOptionCount++;
+                            if (unhandledDialogueOptionCount >= 5) {
+                                unhandledDialogueOptionCount = 0;
+                                Rs2Walker.walkFastCanvas(Rs2Player.getWorldLocation());
+                            }
+                        } else {
+                            unhandledDialogueOptionCount = 0;
                         }
                         return;
+                    } else {
+                        unhandledDialogueOptionCount = 0;
                     }
 
                     if (getQuestHelperPlugin().getSelectedQuest() != null &&
@@ -244,8 +313,13 @@ public class QuestScript extends Script {
 						return;
 					}
 
-					if (questStep instanceof DetailedQuestStep && shouldObtainMissingItems() && handleMissingItemRequirements((DetailedQuestStep) questStep)) {
-						return;
+					if (questStep instanceof DetailedQuestStep && shouldObtainMissingItems()) {
+						if (!canQuestWalk((DetailedQuestStep) questStep)) {
+							return;
+						}
+						if (handleMissingItemRequirements((DetailedQuestStep) questStep)) {
+							return;
+						}
 					}
 
 					/**
@@ -1201,7 +1275,9 @@ public class QuestScript extends Script {
 					&& Rs2Camera.isTileOnScreen(LocalPoint.fromWorld(Microbot.getClient().getTopLevelWorldView(), worldPoint))) {
 				lootGroundItem(targetItemId, 10);
 			} else {
-				Rs2Walker.walkTo(worldPoint, 2);
+				if (canQuestWalk(questStep)) {
+					Rs2Walker.walkTo(worldPoint, 2);
+				}
 			}
 		} else {
 			lootGroundItem(targetItemId, 20);
@@ -1258,6 +1334,10 @@ public class QuestScript extends Script {
         valeTotemsSessionWoodType = null;
         obtainItemsPromptInFlight.set(false);
         obtainItemsSessionChoice = null;
+        lastClearedQuestStep = null;
+        lastObservedUserClearAtMs = 0;
+        lastActiveStep = null;
+        ShortestPathScript.resetUserClearState();
     }
 
     public boolean applyStep(QuestStep step) {
@@ -1344,12 +1424,20 @@ public class QuestScript extends Script {
                 sleepUntil(Rs2Dialogue::isInDialogue);
             }
         } else if (npc != null && npc.getLocalLocation() != null && !Rs2Camera.isTileOnScreen(npc.getLocalLocation())) {
-            Rs2Walker.walkTo(npc.getWorldLocation(), 2);
+            if (canQuestWalk(step)) {
+                Rs2Walker.walkTo(npc.getWorldLocation(), 2);
+            }
+            return false;
         } else if (npc != null && (!npc.hasLineOfSight() || !Rs2Walker.canReach(npc.getWorldLocation()))) {
-            Rs2Walker.walkTo(npc.getWorldLocation(), 2);
+            if (canQuestWalk(step)) {
+                Rs2Walker.walkTo(npc.getWorldLocation(), 2);
+            }
+            return false;
         } else {
             if (step.getDefinedPoint().getWorldPoint().distanceTo(Rs2Player.getWorldLocation()) > 3) {
-                Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint(), 2);
+                if (canQuestWalk(step)) {
+                    Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint(), 2);
+                }
                 return false;
             }
         }
@@ -1379,6 +1467,9 @@ public class QuestScript extends Script {
         }
 
         if (object != null && unreachableTarget) {
+            if (!canQuestWalk(step)) {
+                return false;
+            }
             var tileObjects = new Rs2TileObjectQueryable()
                     .where(x -> x.getTileObjectType() == TileObjectType.WALL)
                     .toList();
@@ -1406,6 +1497,9 @@ public class QuestScript extends Script {
         // walker lets it open the door before we try to interact.
         if (step.getDefinedPoint().getWorldPoint() != null && Rs2Player.getWorldLocation().distanceTo2D(step.getDefinedPoint().getWorldPoint()) > 1
                 && (object == null || !Rs2Walker.canReach(object.getWorldLocation()) || !hasLineOfSightToObject(object))) {
+            if (!canQuestWalk(step)) {
+                return false;
+            }
             WorldPoint targetTile = null;
             WorldPoint stepLocation = object == null ? step.getDefinedPoint().getWorldPoint() : object.getWorldLocation();
             int radius = 0;
@@ -1447,7 +1541,9 @@ public class QuestScript extends Script {
             sleepUntil(() -> !Rs2Player.isMoving() && !Rs2Player.isAnimating());
             objectsHandeled.add(object.getHash());
         } else if (object != null) {
-            Rs2Walker.walkTo(object.getWorldLocation(), 1);
+            if (canQuestWalk(step)) {
+                Rs2Walker.walkTo(object.getWorldLocation(), 1);
+            }
             return false;
         }
 
@@ -1455,6 +1551,8 @@ public class QuestScript extends Script {
     }
 
     private boolean applyDigStep(DigStep step) {
+        if (!canQuestWalk(step) && !Rs2Player.getWorldLocation().equals(step.getDefinedPoint().getWorldPoint()))
+            return false;
         if (!Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint()))
             return false;
         else if (!Rs2Player.getWorldLocation().equals(step.getDefinedPoint().getWorldPoint()))
@@ -1581,6 +1679,9 @@ public class QuestScript extends Script {
             if (Rs2Tile.areSurroundingTilesWalkable(conditionalStep.getDefinedPoint().getWorldPoint(), 1, 1)) {
                 WorldPoint nearestUnreachableWalkableTile = Rs2Tile.getNearestWalkableTileWithLineOfSight(conditionalStep.getDefinedPoint().getWorldPoint());
                 if (nearestUnreachableWalkableTile != null) {
+                    if (!canQuestWalk(conditionalStep)) {
+                        return false;
+                    }
                     return Rs2Walker.walkTo(nearestUnreachableWalkableTile, 0);
                 }
             }
@@ -1606,8 +1707,13 @@ public class QuestScript extends Script {
 			}
 		}
 
-        if (!usingItems && conditionalStep.getDefinedPoint().getWorldPoint() != null && !Rs2Walker.walkTo(conditionalStep.getDefinedPoint().getWorldPoint()))
-            return true;
+        if (!usingItems && conditionalStep.getDefinedPoint().getWorldPoint() != null) {
+            if (!canQuestWalk(conditionalStep)) {
+                return false;
+            }
+            if (!Rs2Walker.walkTo(conditionalStep.getDefinedPoint().getWorldPoint()))
+                return true;
+        }
 
 		if (conditionalStep.getIconItemID() != -1 && conditionalStep.getDefinedPoint().getWorldPoint() != null
 				&& conditionalStep.getDefinedPoint().getWorldPoint().toWorldArea().hasLineOfSightTo(Microbot.getClient().getTopLevelWorldView(), Rs2Player.getWorldLocation())) {

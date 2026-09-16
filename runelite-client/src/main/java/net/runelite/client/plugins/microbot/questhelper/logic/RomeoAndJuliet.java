@@ -96,12 +96,19 @@ public class RomeoAndJuliet extends BaseQuest {
             return true;
         }
 
+        if (!canWalk()) {
+            return false;
+        }
+
         return Rs2Walker.walkTo(ROMEO_LOCATION, 12);
     }
 
     private boolean fetchCadavaBerries() {
         if (Rs2Inventory.hasItem(ItemID.CADAVABERRIES)) {
             return true;
+        }
+        if (!canWalk()) {
+            return false;
         }
         if (Rs2Walker.walkTo(3266, 3374, 0, 10)) {
             Rs2GameObject.interact(new int[] {ObjectID.FAI_VARROCK_CADAVABUSH_2, ObjectID.FAI_VARROCK_CADAVABUSH_1, ObjectID.FAI_VARROCK_CADAVABUSH_0}, "take");

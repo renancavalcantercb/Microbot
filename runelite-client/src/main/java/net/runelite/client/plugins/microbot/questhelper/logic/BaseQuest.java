@@ -2,10 +2,15 @@ package net.runelite.client.plugins.microbot.questhelper.logic;
 
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.questhelper.QuestHelperPlugin;
+import net.runelite.client.plugins.microbot.questhelper.QuestScript;
 
 public abstract class BaseQuest implements IQuest {
 
     protected QuestHelperPlugin getQuestHelperPlugin() {
         return (QuestHelperPlugin) Microbot.getPluginManager().getPlugins().stream().filter(x -> x instanceof QuestHelperPlugin).findFirst().orElse(null);
+    }
+
+    protected boolean canWalk() {
+        return QuestScript.canQuestWalk();
     }
 }

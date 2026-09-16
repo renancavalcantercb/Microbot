@@ -951,6 +951,14 @@ public class Rs2Walker {
     // can still see null only when setTarget(null) is intended. recalculatePath no longer nulls
     // currentTarget between restarts (avoids false cancel during sleepUntil).
     private static final ReentrantLock walkerLock = new ReentrantLock();
+    private static volatile Thread activeWalkingThread = null;
+
+    public static void interruptActiveWalk() {
+        Thread t = activeWalkingThread;
+        if (t != null) {
+            t.interrupt();
+        }
+    }
     /**
      * Optional completion rule owned by the thread currently executing {@link #walkUntil}.
      *
@@ -1291,6 +1299,9 @@ public class Rs2Walker {
             log.warn("Please do not call the walker from the main thread");
             return WalkerState.EXIT;
         }
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled()) {
+            return WalkerState.EXIT;
+        }
         if (!walkerLock.tryLock()) {
             log.warn("[Walker] concurrent walk request detected, waiting for in-flight walk (held by {}); new target={}",
                     Thread.currentThread().getName(), target);
@@ -1301,6 +1312,11 @@ public class Rs2Walker {
                 return WalkerState.EXIT;
             }
         }
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled()) {
+            walkerLock.unlock();
+            return WalkerState.EXIT;
+        }
+        activeWalkingThread = Thread.currentThread();
         try {
             if (TeleportationItem.bankWalkingEnabled(config)) {
                 return walkWithBankedTransportsAndState(target, distance, false);
@@ -1308,6 +1324,10 @@ public class Rs2Walker {
                 return walkWithStateInternal(target, distance);
             }
         } finally {
+            if (walkerLock.getHoldCount() == 1) {
+                activeWalkingThread = null;
+                Thread.interrupted();
+            }
             walkerLock.unlock();
         }
     }
@@ -1334,6 +1354,10 @@ public class Rs2Walker {
         if (isClientThread())
         {
             log.warn("Please do not call the walker from the main thread");
+            return WalkerState.EXIT;
+        }
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled())
+        {
             return WalkerState.EXIT;
         }
         if (lockWaitMs < 0)
@@ -1363,6 +1387,12 @@ public class Rs2Walker {
                     lockWaitMs, Thread.currentThread().getName(), target);
             return WalkerState.EXIT;
         }
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled())
+        {
+            walkerLock.unlock();
+            return WalkerState.EXIT;
+        }
+        activeWalkingThread = Thread.currentThread();
         try
         {
             if (TeleportationItem.bankWalkingEnabled(config))
@@ -1373,6 +1403,11 @@ public class Rs2Walker {
         }
         finally
         {
+            if (walkerLock.getHoldCount() == 1)
+            {
+                activeWalkingThread = null;
+                Thread.interrupted();
+            }
             walkerLock.unlock();
         }
     }
@@ -1472,6 +1507,9 @@ public class Rs2Walker {
         }
         if (isClientThread()) {
             log.warn("Please do not call the walker from the main thread");
+            return WalkerState.EXIT;
+        }
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled()) {
             return WalkerState.EXIT;
         }
 
@@ -3377,6 +3415,9 @@ public class Rs2Walker {
     }
 
     private static boolean isWalkCancelled(WorldPoint target) {
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled()) {
+            return true;
+        }
         WalkCompletionContext completion = walkCompletionContext.get();
         if (completion != null && Objects.equals(completion.target, target)
                 && evaluateWalkCompletion(completion)) {
@@ -12143,6 +12184,9 @@ public class Rs2Walker {
             log.error("Please do not call the walker from the main thread");
             return WalkerState.EXIT;
         }
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled()) {
+            return WalkerState.EXIT;
+        }
         if (!walkerLock.tryLock()) {
             log.warn("[Walker] concurrent banked-transport walk detected, waiting for in-flight walk (held by {}); new target={}",
                     Thread.currentThread().getName(), target);
@@ -12153,9 +12197,18 @@ public class Rs2Walker {
                 return WalkerState.EXIT;
             }
         }
+        if (ShortestPathPlugin.getShortestPathScript() != null && !ShortestPathPlugin.getShortestPathScript().isWalkingEnabled()) {
+            walkerLock.unlock();
+            return WalkerState.EXIT;
+        }
+        activeWalkingThread = Thread.currentThread();
         try {
             return walkWithBankedTransportsAndStateLocked(target, distance, forceBanking);
         } finally {
+            if (walkerLock.getHoldCount() == 1) {
+                activeWalkingThread = null;
+                Thread.interrupted();
+            }
             walkerLock.unlock();
         }
     }

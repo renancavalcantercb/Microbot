@@ -33,7 +33,9 @@ public class RuneMysteries extends BaseQuest {
                 }
                 var npc = Rs2Npc.getNpc(NpcID.AUBURY_2OP);
                 if (new WorldPoint(3253, 3401, 0).distanceTo(Rs2Player.getWorldLocation()) > 3) {
-                    Rs2Walker.walkTo(3253, 3401, 0, 3);
+                    if (canWalk()) {
+                        Rs2Walker.walkTo(3253, 3401, 0, 3);
+                    }
                 } else if (!Rs2Dialogue.isInDialogue()) {
                     Rs2Npc.interact(npc, "Talk-to");
                 }
@@ -54,7 +56,9 @@ public class RuneMysteries extends BaseQuest {
                     }
                     var npc = Rs2Npc.getNpc(NpcID.DUKE_OF_LUMBRIDGE);
                     if (npc == null) {
-                        Rs2Walker.walkTo(3209, 3222, 1, 3);
+                        if (canWalk()) {
+                            Rs2Walker.walkTo(3209, 3222, 1, 3);
+                        }
                     } else {
                         Rs2Npc.interact(npc, "Talk-to");
                     }
@@ -78,7 +82,9 @@ public class RuneMysteries extends BaseQuest {
                     }
                     var npc = Rs2Npc.getNpc(NpcID.HEAD_WIZARD_1OP);
                     if (new WorldPoint(3105, 9571, 0).distanceTo(Rs2Player.getWorldLocation()) > 3) {
-                        Rs2Walker.walkTo(3105, 9571, 0, 3);
+                        if (canWalk()) {
+                            Rs2Walker.walkTo(3105, 9571, 0, 3);
+                        }
                     } else if (!Rs2Dialogue.isInDialogue()) {
                         Rs2Npc.interact(npc, "Talk-to");
                     }

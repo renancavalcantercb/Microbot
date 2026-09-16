@@ -213,8 +213,8 @@ public class ShortestPathPlugin extends Plugin {
     public static boolean startPointSet = false;
     @Setter
     private static int reachedDistance;
-    @Getter(AccessLevel.PACKAGE)
-    private ShortestPathScript shortestPathScript;
+    @Getter
+    private static ShortestPathScript shortestPathScript;
 
     // Set by onGameStateChanged when the client transitions to LOGGED_IN. Consumed on the next
     // game tick so varbits, quest states, inventory, and bank containers are hydrated before
@@ -331,9 +331,16 @@ public class ShortestPathPlugin extends Plugin {
         PohPanel.instance = null;
         pohPanel = null;
 
-        shortestPathScript.shutdown();
+        if (shortestPathScript != null) {
+            shortestPathScript.shutdown();
+            shortestPathScript = null;
+        }
 
         exit();
+    }
+
+    public static boolean isWalkingEnabled() {
+        return shortestPathScript != null && shortestPathScript.isWalkingEnabled();
     }
 
     //Method from microbot

@@ -71,6 +71,22 @@ public class ShortestPathScript extends Script {
         super.shutdown();
     }
 
+    private static volatile long lastUserClearAtMs = 0;
+    private static volatile String lastUserClearReason = null;
+
+    public static long getLastUserClearAtMs() {
+        return lastUserClearAtMs;
+    }
+
+    public static String getLastUserClearReason() {
+        return lastUserClearReason;
+    }
+
+    public static void resetUserClearState() {
+        lastUserClearAtMs = 0;
+        lastUserClearReason = null;
+    }
+
     public synchronized boolean isWalkingEnabled() {
         return walkingEnabled;
     }
@@ -80,10 +96,16 @@ public class ShortestPathScript extends Script {
             return;
         }
         walkingEnabled = !walkingEnabled;
+        if (walkingEnabled) {
+            resetUserClearState();
+        } else {
+            clearRoute("shortest-path-script:toggle-walking-paused");
+        }
         notice.accept(walkingEnabled ? ManualWalkingNotice.ENABLED : ManualWalkingNotice.PAUSED);
         revision++;
         resetExitRetryState();
         interruptWalk();
+        Rs2Walker.interruptActiveWalk();
         // The old worker must finish before a preview or a replacement walk can own the route.
         if (!walkTaskRunning && triggerWalker != null) {
             refreshPreview();
@@ -104,7 +126,11 @@ public class ShortestPathScript extends Script {
         resetExitRetryState();
         interruptWalk();
         if (point == null) {
+            lastUserClearAtMs = System.currentTimeMillis();
+            lastUserClearReason = stopReason == null ? "shortest-path-script:trigger-null" : stopReason;
             clearRoute(stopReason == null ? "shortest-path-script:trigger-null" : stopReason);
+        } else {
+            resetUserClearState();
         }
         if (!walkTaskRunning && point != null) {
             refreshPreview();
@@ -250,7 +276,8 @@ public class ShortestPathScript extends Script {
         String normalized = reason.toLowerCase();
         return normalized.contains("ctrl+x")
                 || normalized.contains("stop-walking-button")
-                || normalized.contains("trigger-null");
+                || normalized.contains("trigger-null")
+                || normalized.contains("toggle-walking-paused");
     }
 
     private boolean isLocalPlayerDead() {

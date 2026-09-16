@@ -266,6 +266,17 @@ public interface QuestHelperConfig extends Config
 		return ObtainMissingItemsOption.ASK;
 	}
 
+	@ConfigItem(
+			keyName = "syncWebWalkerWalking",
+			name = "Sync with Web Walker",
+			description = "Respects Web Walker's Toggle Walking and Clear Path. Pauses auto-walking when walking is toggled off or path is cleared.",
+			section = microbotSection,
+			position = 2
+	)
+	default boolean syncWebWalkerWalking() {
+		return true;
+	}
+
 	@Getter
 	enum ObtainMissingItemsOption
 	{
