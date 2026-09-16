@@ -180,3 +180,17 @@ Keep action discovery and dispatch separate: `Rs2Reflection.getGroundItemActions
 **Where this applies:** `Rs2GroundItem.interact`, `Rs2TileItemModel.click`, and future ground-item interaction helpers.
 
 **Defensive check:** Drop loot on a tile visually overlapped by an NPC and beside an openable door. Verify the intended item is taken from multiple camera angles and no `Unable to find clicked menu op` engine message appears.
+
+---
+
+## 10. Equipment batches need room before the first withdrawal
+
+`Rs2InventorySetup.loadEquipment` withdraws all missing gear before equipping any of it.
+
+**Why this matters:** The former withdraw-and-equip loop freed a slot after every item. A batch needs space for every pending equipment stack, including ammunition. Checking only `isFull()` can stall halfway through the withdrawals.
+
+**Pattern to follow:** Count missing equipment rows that are not already in inventory and compare that count with `Rs2Inventory.emptySlotCount()`. Retained preset supplies can leave too little room even when the inventory is not full; deposit and synchronize the bank before starting the batch in that case. Load the preset inventory after equipment succeeds so those supplies are restored.
+
+**Where this applies:** `Rs2InventorySetup.loadEquipment` and callers loading equipment followed by inventory.
+
+**Defensive check:** `Rs2InventorySetupEquipmentTest` verifies withdrawal order, retained gear, ammunition quantities, insufficient space, withdrawal failure, and cancellation before equipping.

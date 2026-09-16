@@ -1,6 +1,6 @@
 # Rs2Walker Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Walker` class is the primary utility for handling player movement and pathfinding. It supports walking to specific coordinates, handling obstacles, using transports (teleports, ships, etc.), and interacting with the minimap.

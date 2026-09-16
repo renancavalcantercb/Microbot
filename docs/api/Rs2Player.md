@@ -1,5 +1,5 @@
 # Rs2Player Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 The `Rs2Player` class is responsible for managing the player's state and interactions within the game. It includes methods for managing player status like hitpoints, energy, and various potion effects, as well as player actions like logging out, eating, and toggling run energy.
 

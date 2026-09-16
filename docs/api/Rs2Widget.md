@@ -1,6 +1,6 @@
 # Rs2Widget Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Widget` class provides a comprehensive set of methods for finding, checking, and interacting with widgets in the game interface. It supports finding widgets by text, ID, or structure, and interacting with them.

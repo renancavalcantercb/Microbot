@@ -1,44 +1,81 @@
 - **Start botting**
-    - Install Microbot
-- [**Development**](Development.md)
-    - [**Agent Script Tools**](AGENT_SCRIPT_TOOLS.md)
-    - **API**
-      * [Rs2Bank](api/apidocs/net/runelite/client/plugins/microbot/util/bank/Rs2Bank.html)
-      * [Rs2Camera](api/apidocs/net/runelite/client/plugins/microbot/util/camera/Rs2Camera.html)
-      * [Rs2Combat](api/apidocs/net/runelite/client/plugins/microbot/util/combat/Rs2Combat.html)
-      * [Rs2Dialogues](api/apidocs/net/runelite/client/plugins/microbot/util/dialogues/Rs2Dialogues.html)
-      * [Rs2Equipment](api/apidocs/net/runelite/client/plugins/microbot/util/equipment/Rs2Equipment.html)
-      * [Rs2Cannon](api/apidocs/net/runelite/client/plugins/microbot/util/gameobject/Rs2Cannon.html)
-      * [Rs2GameObject](api/apidocs/net/runelite/client/plugins/microbot/util/gameobject/Rs2GameObject.html)
-      * [Rs2GroundItem](api/apidocs/net/runelite/client/plugins/microbot/util/grounditem/Rs2GroundItem.html)
-      * [Rs2Inventory](api/apidocs/net/runelite/client/plugins/microbot/util/inventory/Rs2Inventory.html)
-      * [Rs2KeyBoard](api/apidocs/net/runelite/client/plugins/microbot/util/keyboard/Rs2Keyboard.html)
-      * [Rs2Magic](api/apidocs/net/runelite/client/plugins/microbot/util/magic/Rs2Magic.html)
-      * [Rs2Spells](api/apidocs/net/runelite/client/plugins/microbot/util/magic/Rs2Spells.html)
-      * [Rs2Food](api/apidocs/net/runelite/client/plugins/microbot/util/misc/Rs2Food.html)
-      * [Rs2Npc](api/apidocs/net/runelite/client/plugins/microbot/util/npc/Rs2Npc.html)
-      * [Rs2Player](api/apidocs/net/runelite/client/plugins/microbot/util/player/Rs2Player.html)
-      * [Rs2Pvp](api/apidocs/net/runelite/client/plugins/microbot/util/player/Rs2Pvp.html)
-      * [Rs2Prayer](api/apidocs/net/runelite/client/plugins/microbot/util/prayer/Rs2Prayer.html)
-      * [Rs2Reflection](api/apidocs/net/runelite/client/plugins/microbot/util/prayer/Rs2Reflection.html)
-      * [Rs2Settings](api/apidocs/net/runelite/client/plugins/microbot/util/settings/Rs2Settings.html)
-      * [Rs2Tab](api/apidocs/net/runelite/client/plugins/microbot/util/tabs/Rs2Settings.html)
-      * [Rs2Walker](api/apidocs/net/runelite/client/plugins/microbot/util/walker/Rs2Settings.html)
-      * [Rs2Minimap](api/apidocs/net/runelite/client/plugins/microbot/util/walker/Rs2Settings.html)
-      * [Rs2Widget](api/apidocs/net/runelite/client/plugins/microbot/util/widget/Rs2Widget.html)
-    - **Script Examples**
-        * [Fighter Script](combat.md)
-    - **Plugin Scheduler**
-      * [Overview](scheduler/README.md)
-      * [User Guide](scheduler/user-guide.md)
-      * [Defining Conditions](scheduler/defining-conditions.md)
-      * [PluginScheduleEntry](scheduler/plugin-schedule-entry-merged.md)
-      * [SchedulerPlugin](scheduler/scheduler-plugin.md)
-      * [PluginScheduleEntryMainTaskFinishedEvent](scheduler/event/plugin-schedule-entry-finished-event.md)
-      * [PluginScheduleEntryPostScheduleTaskEvent](scheduler/event/plugin-schedule-entry-soft-stop-event.md)
-      * [Time Conditions](scheduler/time-conditions.md)
-      * [Logical Conditions](scheduler/logical-conditions.md)
-      * [Resource Conditions](scheduler/resource-conditions.md)
-      * [Skill Conditions](scheduler/skill-conditions.md)
-      * [Location Conditions](scheduler/location-conditions.md)
-      * [NPC Conditions](scheduler/npc-conditions.md)
+    - [Installation](installation.md)
+    - [Gallery](gallery.md)
+
+- [**Development**](development.md)
+    - [Architecture](ARCHITECTURE.md)
+    - [Full documentation index](INDEX.md)
+    - **Decision Records**
+      * [ADR 0001 — Record architecture decisions](decisions/adr-0001-record-architecture-decisions.md)
+      * [ADR 0002 — Composite build structure](decisions/adr-0002-composite-build-structure.md)
+      * [ADR 0003 — Queryable cache pattern](decisions/adr-0003-queryable-cache-pattern.md)
+      * [ADR 0004 — Shaded distribution packaging](decisions/adr-0004-shaded-distribution-packaging.md)
+
+- **Entity Guides**
+    - [Overview](entity-guides/README.md)
+    - [Items](entity-guides/items.md)
+    - [Movement](entity-guides/movement.md)
+
+- [**API Reference**](api/README.md)
+    - **Player & Combat**
+      * [Rs2Player](api/Rs2Player.md)
+      * [Rs2Pvp](api/Rs2Pvp.md)
+      * [Rs2Combat](api/Rs2Combat.md)
+      * [Rs2Prayer](api/Rs2Prayer.md)
+      * [Rs2Antiban](api/Rs2Antiban.md)
+    - **Items & Storage**
+      * [Rs2Inventory](api/Rs2Inventory.md)
+      * [Rs2Bank](api/Rs2Bank.md)
+      * [Rs2DepositBox](api/Rs2DepositBox.md)
+      * [Rs2Equipment](api/Rs2Equipment.md)
+      * [Rs2GroundItem](api/Rs2GroundItem.md)
+      * [Rs2Shop](api/Rs2Shop.md)
+      * [Rs2GrandExchange](api/Rs2GrandExchange.md)
+      * [Rs2RunePouch](api/Rs2RunePouch.md)
+      * [Rs2Gembag](api/Rs2Gembag.md)
+      * [Rs2Food](api/Rs2Food.md)
+    - **World & Entities**
+      * [Rs2Npc](api/Rs2Npc.md)
+      * [Rs2GameObject](api/Rs2GameObject.md)
+      * [Rs2Cannon](api/Rs2Cannon.md)
+      * [Rs2Tile](api/Rs2Tile.md)
+      * [Rs2WorldPoint](api/Rs2WorldPoint.md)
+    - **Movement & Camera**
+      * [Rs2Walker](api/Rs2Walker.md)
+      * [Rs2MiniMap](api/Rs2MiniMap.md)
+      * [Rs2Camera](api/Rs2Camera.md)
+    - **Interfaces & Input**
+      * [Rs2Widget](api/Rs2Widget.md)
+      * [Rs2Tab](api/Rs2Tab.md)
+      * [Rs2Dialogue](api/Rs2Dialogue.md)
+      * [Rs2Keyboard](api/Rs2Keyboard.md)
+      * [Mouse](api/Mouse.md)
+      * [NewMenuEntry](api/NewMenuEntry.md)
+      * [MouseMacroRecorder](api/MouseMacroRecorder.md)
+    - **Magic & Skilling**
+      * [Rs2Magic](api/Rs2Magic.md)
+      * [Rs2Spells](api/Rs2Spells.md)
+      * [Rs2Farming](api/Rs2Farming.md)
+      * [Rs2HuntKit](api/Rs2HuntKit.md)
+    - **Client & Configuration**
+      * [Rs2Settings](api/Rs2Settings.md)
+      * [Rs2Reflection](api/Rs2Reflection.md)
+      * [Rs2LeaguesTransport](api/Rs2LeaguesTransport.md)
+
+- **Script Examples**
+    - [Fighter Script](combat.md)
+
+- **Runtime Agent Tooling**
+    - [Microbot CLI](MICROBOT_CLI.md)
+    - [Agent Server](AGENT_SERVER.md)
+    - [Agent Script Tools](AGENT_SCRIPT_TOOLS.md)
+    - [Agentic Testing Loop](AGENTIC_TESTING_LOOP.md)
+    - [Client-Thread Manifest](client-thread-manifest.md)
+
+- **Walker & Pathfinding**
+    - [Walker Audit & Roadmap](walker-audit.md)
+    - [Walker P2 — Obstacle Model](walker-p2-unification.md)
+    - [F2P Web Walker Harness](F2P_WEBWALKER_HARNESS.md)
+
+- **Security**
+    - [Detection Hardening Plan](DETECTION_HARDENING.md)

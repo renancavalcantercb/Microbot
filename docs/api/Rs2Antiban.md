@@ -1,6 +1,6 @@
 # Rs2Antiban Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Antiban` class provides a comprehensive anti-ban system that simulates human-like behavior during various in-game activities. This system includes features such as mouse fatigue, random intervals, micro-breaks, action cooldowns, and contextually aware mouse movements, all aimed at reducing the risk of detection.

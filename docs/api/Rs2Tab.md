@@ -1,6 +1,6 @@
 # Rs2Tab Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Tab` class manages interface tabs in the game, such as Inventory, Combat, Skills, and others. It provides methods to switch between tabs and check the currently active tab.

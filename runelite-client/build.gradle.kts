@@ -528,3 +528,14 @@ tasks.withType<Test> {
 tasks.javadoc {
     title = "RuneLite Client ${project.version} API"
 }
+tasks.register<Jar>("madCowJar") {
+    group = "build"
+    description = "Package KSP Mad Cow and its shared KSP dependencies for local sideloading."
+    archiveFileName.set("KspMadCowPlugin.jar")
+    from(sourceSets.main.get().output) {
+        include("net/runelite/client/plugins/microbot/kspmadcow/**")
+        include("net/runelite/client/plugins/microbot/kspmule/**")
+        include("net/runelite/client/plugins/microbot/kspbank/**")
+        include("net/runelite/client/plugins/microbot/kspsupport/**")
+    }
+}

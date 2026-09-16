@@ -1,5 +1,5 @@
 # Rs2Dialogue Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 The `Rs2Dialogue` class provides methods to handle in-game dialogue interactions, allowing for checking if a dialogue is present and automating responses.
 

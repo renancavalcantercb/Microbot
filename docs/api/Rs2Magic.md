@@ -1,5 +1,5 @@
 # Rs2Magic Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 The `Rs2Magic` class facilitates magic-related operations in the Microbot client, allowing for casting spells on various entities and performing alchemy. It handles interactions with the game's magic interface and provides utility functions for different spell actions.
 

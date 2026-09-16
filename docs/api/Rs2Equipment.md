@@ -1,5 +1,5 @@
 # Rs2Equipment Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 The `Rs2Equipment` class provides methods to interact with the player's equipment, allowing for checking equipment status, manipulating specific items, and managing actions related to equipment slots.
 

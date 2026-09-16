@@ -1,5 +1,5 @@
 # Rs2MiniMap Class Documentation
-## [Back](development.md)
+## [Back](README.md)
 ## Overview
 The `Rs2MiniMap` class provides methods for translating in-game coordinates into mini-map points in the Microbot client. This functionality is essential for navigation and pathfinding tasks that require mini-map interaction.
 

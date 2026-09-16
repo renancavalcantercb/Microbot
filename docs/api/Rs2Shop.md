@@ -1,6 +1,6 @@
 # Rs2Shop Class Documentation
 
-## [Back](development.md)
+## [Back](README.md)
 
 ## Overview
 The `Rs2Shop` class manages interactions with shops in the game, including opening shops, buying items, checking stock, and handling shop interfaces.
