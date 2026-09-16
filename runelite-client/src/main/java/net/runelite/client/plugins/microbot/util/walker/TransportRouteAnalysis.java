@@ -33,6 +33,9 @@ public class TransportRouteAnalysis {
     /** Path of WorldPoints from bank to destination, accounting for items available in bank */
     private final List<WorldPoint> pathFromBank;
 
+    /** Captured before the planner restores inventory-only transport eligibility. */
+    private final List<Transport> bankLegTransports;
+
     /** Explicit direct distance captured at analysis time (tiles), or -1 if unavailable */
     private final int directDistance;
 
@@ -64,6 +67,15 @@ public class TransportRouteAnalysis {
                                 BankLocation nearestBank, WorldPoint bankLocation, List<WorldPoint> pathToBank,
                                 List<WorldPoint> pathFromBank, String analysis,
                                 int directDistance, int bankingRouteDistance) {
+        this(directPath, nearestBank, bankLocation, pathToBank, pathFromBank, analysis,
+                directDistance, bankingRouteDistance, List.of());
+    }
+
+    public TransportRouteAnalysis(List<WorldPoint> directPath,
+                                BankLocation nearestBank, WorldPoint bankLocation, List<WorldPoint> pathToBank,
+                                List<WorldPoint> pathFromBank, String analysis,
+                                int directDistance, int bankingRouteDistance, List<Transport> bankLegTransports) {
+        this.bankLegTransports = List.copyOf(bankLegTransports);
         this.directPath = directPath;
         this.nearestBank = nearestBank;
         this.bankLocation = bankLocation;

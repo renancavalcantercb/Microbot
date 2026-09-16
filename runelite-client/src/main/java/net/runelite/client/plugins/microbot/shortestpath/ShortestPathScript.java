@@ -203,7 +203,7 @@ public class ShortestPathScript extends Script {
     }
 
     WalkerState executeWalk(WorldPoint target) {
-        return config.walkWithBankedTransports()
+        return TeleportationItem.bankWalkingEnabled(config)
                 ? Rs2Walker.walkWithBankedTransportsAndState(target, 10, false)
                 : Rs2Walker.walkWithState(target);
     }

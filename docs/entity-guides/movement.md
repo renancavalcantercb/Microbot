@@ -295,3 +295,27 @@ Sticky interim targets should also clear when route-index progress goes stale. I
 When a route-following minimap click is outside the minimap clip, fallback clicks must stay on the raw path. A generic "reachable tile closer to target" fallback can select a tile far away from the route in open areas, especially near the final destination.
 
 For adjacent same-plane shortcuts, do not treat any movement away from the origin as success. Some shortcuts, such as stepping stones, can fail and place the player on a fallback tile; once the player is settled away from the expected destination, stop the landing wait and replan from the actual tile.
+
+## 14. Bank detours must preserve MOVING and keep bank items out of the first leg
+
+A banked walk has an outer destination and an intermediate bank destination. Keep the selected bank across MOVING callbacks and clear it on cancellation. MOVING is not a failed route. Calculate the trip to the bank with carried items only; capture transport requirements from the bank-to-destination leg before restoring normal eligibility. After a failed withdrawal, continue with carried items for the remainder of that walk.
+
+After withdrawal, discard the completed pathfinder and its future before continuing. Refreshing transport eligibility alone leaves a completed preview to the same destination reusable, so newly withdrawn items or runes never enter the active route.
+
+**Why this matters:** Treating MOVING as failure clears an active route, and using banked items to reach the bank creates a route whose first teleport cannot execute. Reusing a preview from before withdrawal makes the walker continue on foot despite carrying the selected teleport.
+
+**Where this applies:** `Rs2Walker.processBankedWalk`, `Rs2WalkerBankingPlanner.compareRoutes`, `TransportRouteAnalysis`.
+
+**Defensive check:** `BankedWalkContinuationTest` covers preserving the selected leg and clearing it on cancellation; `BankTeleportationConfigTest` checks bank eligibility by leg and transport type.
+
+## 15. Classify interaction completion before reporting a banked walk failure
+
+`walkUntil` uses its thread-local completion condition to stop the movement loop with `EXIT`, then returns `ARRIVED` to the caller. A bank wrapper inside that call must recognize the captured `met` flag for the same target before reporting its outcome. Do not evaluate the callback again when reporting, or apply another destination's completion flag.
+
+**Why this matters:** Farming Runner reached an interactable patch and logged `completion-condition-met`, but the bank wrapper emitted `bank_walk | failed ... state=EXIT` before the outer call translated it to success. Manual cancellation produced the same misleading warning and redundantly cleared the shared route.
+
+**Pattern to follow:** Report a captured completion as arrival, ordinary `EXIT` as stopped, and `UNREACHABLE` as failure. Only clear a failed route while its target is still current; an old walk must not clear a replacement destination.
+
+**Where this applies:** `Rs2Walker.finishBankedDirectWalk`, `walkWithStateUntil`, and wrappers around cancellable walks.
+
+**Defensive check:** `BankedWalkOutcomeTest` covers satisfied/unsatisfied conditions, another target's completion, manual cancellation, replacement routes, ongoing movement and unreachable destinations.
