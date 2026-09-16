@@ -17,6 +17,8 @@ import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.bank.enums.BankLocation;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.magic.Runes;
+import net.runelite.client.plugins.microbot.util.magic.RuneFilter;
+import java.util.Optional;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.walker.TransportRouteAnalysis;
 import net.runelite.client.plugins.microbot.util.walker.WebWalkLog;
@@ -284,12 +286,14 @@ public final class Rs2WalkerBankingPlanner {
             BankLocation nearestBank = null;
             List<WorldPoint> pathToBank = new ArrayList<>();
             List<WorldPoint> pathFromBankToTarget = new ArrayList<>();
+            List<Transport> bankLegTransports = new ArrayList<>();
             int bankingRouteDistance = -1;
 
             try {
                 boolean originalUseBankItems = Rs2PathApi.getPathfinderConfig().isUseBankItems();
                 try {
-                    Rs2PathApi.getPathfinderConfig().setUseBankItems(true);
+                    // Items in the bank cannot be used to reach that bank.
+                    Rs2PathApi.getPathfinderConfig().setUseBankItems(false);
                     Rs2PathApi.getPathfinderConfig().refresh(target);
 
                     performanceLog.append("\t-Bank items available: ").append(Rs2Bank.bankItems().size()).append("\n");
@@ -311,10 +315,11 @@ public final class Rs2WalkerBankingPlanner {
                         int distanceToBank = Rs2Walker.getTotalTilesFromPath(pathToBank, bankLocation);
 
                         long pathFromBankStartTime = System.nanoTime();
+                        Rs2PathApi.getPathfinderConfig().setUseBankItems(true);
                         pathFromBankToTarget = Rs2Walker.getWalkPath(bankLocation, target);
                         long pathFromBankEndTime = System.nanoTime();
                         double pathFromBankTimeMs = (pathFromBankEndTime - pathFromBankStartTime) / 1_000_000.0;
-                        List<Transport> bankLegTransports = Rs2Walker.getTransportsForPath(
+                        bankLegTransports = Rs2Walker.getTransportsForPath(
                                 pathFromBankToTarget, 0, TransportType.TELEPORTATION_SPELL, true);
                         long spellCount = bankLegTransports.stream()
                                 .filter(t -> t.getType() == TransportType.TELEPORTATION_SPELL)
@@ -418,7 +423,7 @@ public final class Rs2WalkerBankingPlanner {
 
             return new TransportRouteAnalysis(directPath,
                     nearestBank, nearestBank != null ? nearestBank.getWorldPoint() : null, pathToBank, pathFromBankToTarget, recommendation,
-                    directDistance, bankingRouteDistance);
+                    directDistance, bankingRouteDistance, bankLegTransports);
         } catch (Exception e) {
             long totalEndTime = System.nanoTime();
             double totalTimeMs = (totalEndTime - totalStartTime) / 1_000_000.0;
@@ -427,6 +432,22 @@ public final class Rs2WalkerBankingPlanner {
             WebWalkLog.compareError(totalTimeMs, target, e.getMessage());
             return new TransportRouteAnalysis(new ArrayList<>(), null, null, new ArrayList<>(), new ArrayList<>(), "Error calculating routes: " + e.getMessage());
         }
+    }
+
+    /** Total spell cost for this route, minus inventory, equipped sources and rune pouch (never bank). */
+    public static Optional<Map<Runes, Integer>> getMissingSpellRunes(List<Transport> transports) {
+        Map<Runes, Integer> required = new HashMap<>();
+        for (Transport transport : transports) {
+            if (transport.getType() != TransportType.TELEPORTATION_SPELL) continue;
+            String display = transport.getDisplayInfo();
+            if (display == null) return Optional.empty();
+            String spellName = display.split(":", 2)[0].trim();
+            Rs2Spells spell = Rs2Magic.getRs2Spell(spellName);
+            if (spell == null) return Optional.empty();
+            spell.getRequiredRunes().forEach((rune, quantity) -> required.merge(rune, quantity, Integer::sum));
+        }
+        if (required.isEmpty()) return Optional.of(Map.of());
+        return Optional.of(Rs2Magic.getMissingRunes(required, RuneFilter.builder().includeBank(false).build()));
     }
 
     private static Map<Integer, Integer> getSpellRuneRequirements(Transport transport) {

@@ -194,3 +194,16 @@ Keep action discovery and dispatch separate: `Rs2Reflection.getGroundItemActions
 **Where this applies:** `Rs2InventorySetup.loadEquipment` and callers loading equipment followed by inventory.
 
 **Defensive check:** `Rs2InventorySetupEquipmentTest` verifies withdrawal order, retained gear, ammunition quantities, insufficient space, withdrawal failure, and cancellation before equipping.
+
+---
+
+## 11. Verify stack withdrawals with itemQuantity, not count
+
+`Rs2Inventory.count(id)` counts occupied inventory rows, while `Rs2Inventory.itemQuantity(id)` sums the quantities in those rows. For a bank withdrawal, record `itemQuantity(id)` before the action and wait until it reaches the previous quantity plus the requested amount.
+
+**Why this matters:** The banked teleport walker successfully withdrew three air runes into one slot, then compared `count(556) == 1` against the requested three. It incorrectly declared failure, skipped the fire and law runes, and resumed walking without a usable teleport. An existing stack also stays in one slot after another withdrawal.
+
+**Where this applies:** `Rs2Walker.withdrawBankSupplies` and bank withdrawal verification using inventory counts.
+
+**Defensive check:** `BankSupplyWithdrawalTest` exercises an empty inventory, an existing rune stack, a partial withdrawal and a rejected action using the real inventory quantity/count methods.
+

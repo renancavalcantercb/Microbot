@@ -74,6 +74,8 @@ import net.runelite.client.plugins.microbot.util.walker.door.Rs2WalkerAwaits;
 import net.runelite.client.plugins.microbot.util.walker.door.model.AwaitTicket;
 import net.runelite.client.plugins.microbot.util.walker.door.model.DoorResolution;
 import net.runelite.client.plugins.microbot.util.walker.banking.Rs2WalkerBankingPlanner;
+import net.runelite.client.plugins.microbot.util.walker.banking.BankedWalkPlan;
+import net.runelite.client.plugins.microbot.util.walker.banking.TransportItemWithdrawals;
 import net.runelite.client.plugins.microbot.util.walker.awaits.Rs2WalkerRuntimeAwaits;
 import net.runelite.client.plugins.microbot.util.walker.puzzles.DraynorBasementSolver;
 import net.runelite.client.plugins.microbot.util.walker.stall.Rs2WalkerStallPolicy;
@@ -1300,7 +1302,7 @@ public class Rs2Walker {
             }
         }
         try {
-            if (config.walkWithBankedTransports()) {
+            if (TeleportationItem.bankWalkingEnabled(config)) {
                 return walkWithBankedTransportsAndState(target, distance, false);
             } else {
                 return walkWithStateInternal(target, distance);
@@ -1363,7 +1365,7 @@ public class Rs2Walker {
         }
         try
         {
-            if (config.walkWithBankedTransports())
+            if (TeleportationItem.bankWalkingEnabled(config))
             {
                 return walkWithBankedTransportsAndStateLocked(target, distance, false);
             }
@@ -3525,7 +3527,11 @@ public class Rs2Walker {
     public static boolean walkMiniMap(WorldPoint worldPoint, double zoomDistance) {
         if (Microbot.getClient().getMinimapZoom() != zoomDistance)
             Microbot.getClient().setMinimapZoom(zoomDistance);
+        return walkMiniMap(worldPoint);
+    }
 
+    /** Walk using the current minimap zoom without changing the user's setting. */
+    public static boolean walkMiniMap(WorldPoint worldPoint) {
         Point point = Rs2MiniMap.worldToMinimap(worldPoint);
 
         if (point == null) return false;
@@ -3536,16 +3542,9 @@ public class Rs2Walker {
     }
 
 
-    public static boolean walkMiniMap(WorldPoint worldPoint) {
-        return walkMiniMap(worldPoint, 5);
-    }
-
-    private static boolean isMiniMapClickable(WorldPoint worldPoint, double zoomDistance) {
+    private static boolean isMiniMapClickable(WorldPoint worldPoint) {
         if (worldPoint == null) {
             return false;
-        }
-        if (Microbot.getClient().getMinimapZoom() != zoomDistance) {
-            Microbot.getClient().setMinimapZoom(zoomDistance);
         }
         Point point = Rs2MiniMap.worldToMinimap(worldPoint);
         return point != null && (disableWalkerUpdate || Rs2MiniMap.isPointInsideMinimap(point));
@@ -3881,7 +3880,7 @@ public class Rs2Walker {
         return findFurthestRawPathPointMatchingGated(rawPath, playerLoc, maxEuclidean, rawAnchorIndex,
                 candidate -> !candidate.equals(playerLoc)
                         && isKnownWalkableOrUnloaded(candidate)
-                        && isMiniMapClickable(candidate, 5));
+                        && isMiniMapClickable(candidate));
     }
 
     // rawPathStepDistance (pure) moved to geometry/WalkerPathGeometry (P1) alongside its only caller,
@@ -5830,7 +5829,7 @@ public class Rs2Walker {
     // findForwardRecoveryIndex extracted to recovery/RouteRecovery (P1 walker decomposition)
 
     private static boolean isMiniMapRecoveryClickable(WorldPoint worldPoint) {
-        return isMiniMapClickable(worldPoint, 5);
+        return isMiniMapClickable(worldPoint);
     }
 
     // interpolateClickableTarget extracted to recovery/RouteRecovery (P1)
@@ -8594,6 +8593,9 @@ public class Rs2Walker {
         currentTarget = target;
 
         if (target == null) {
+            routeState.bankedWalkPlan = null;
+            routeState.bankBootstrapLocation = null;
+            routeState.bankBootstrapTarget = null;
             // A completed/cancelled route owns its transport handoff context. Keeping the
             // timestamp alive made an unrelated walk started within 15 seconds inherit
             // post-transport handler suppression and misleading elapsed-time markers.
@@ -12159,18 +12161,55 @@ public class Rs2Walker {
     }
 
     private static WalkerState walkWithBankedTransportsAndStateLocked(WorldPoint target, int distance, boolean forceBanking) {
+        PathfinderConfig planner = Rs2PathApi.getPathfinderConfig();
+        boolean originalUseBank = planner.isUseBankItems();
+        boolean originalItemsOnly = planner.isBankTeleportsOnly();
+        planner.setUseBankItems(false);
+        planner.setBankTeleportsOnly(!forceBanking && config != null
+                && !config.walkWithBankedTransports()
+                && config.useTeleportationItems() == TeleportationItem.INVENTORY_AND_BANK);
+        try {
+            WalkerState state = processBankedWalk(target, distance, forceBanking);
+            if (state != WalkerState.MOVING) {
+                routeState.bankedWalkPlan = null;
+                routeState.bankBootstrapLocation = null;
+            }
+            return state;
+        } finally {
+            planner.setUseBankItems(originalUseBank);
+            planner.setBankTeleportsOnly(originalItemsOnly);
+        }
+    }
+
+    private static WalkerState processBankedWalk(WorldPoint target, int distance, boolean forceBanking) {
+        if (Thread.currentThread().isInterrupted()) {
+            return WalkerState.EXIT;
+        }
+        BankedWalkPlan pending = routeState.bankedWalkPlan;
+        if (pending != null && pending.getTarget().equals(target)) {
+            return pending.getBank() == null ? walkWithStateInternal(target, distance)
+                    : walkWithBankingState(pending, distance);
+        }
+        routeState.bankedWalkPlan = null;
+        if (!target.equals(routeState.bankBootstrapTarget)) {
+            routeState.bankBootstrapTarget = target;
+            routeState.bankBootstrapLocation = null;
+        }
         WorldPoint pl = Rs2Player.getWorldLocation();
         if (pl == null) {
             // Transient snapshot; main walk / `processWalk` exits when not logged in — MOVING retries next beat.
             return WalkerState.MOVING;
         }
-        Client rlClient = Microbot.getClient();
-        WorldView wv = rlClient != null ? rlClient.getTopLevelWorldView() : null;
-        LocalPoint targetLocal = wv != null ? LocalPoint.fromWorld(wv, target) : null;
-        boolean nearUnwalkableGoal = targetLocal != null
-                && !Rs2Tile.isWalkable(targetLocal)
-                && pl.distanceTo(target) <= distance;
-        if (Rs2Tile.getReachableTilesFromTile(pl, distance).containsKey(target) || nearUnwalkableGoal) {
+        final WorldPoint start = pl;
+        boolean arrived = Microbot.getClientThread().runOnClientThreadOptional(() -> {
+            Client rlClient = Microbot.getClient();
+            WorldView wv = rlClient != null ? rlClient.getTopLevelWorldView() : null;
+            LocalPoint targetLocal = wv != null ? LocalPoint.fromWorld(wv, target) : null;
+            boolean nearUnwalkableGoal = targetLocal != null && !Rs2Tile.isWalkable(targetLocal)
+                    && start.distanceTo(target) <= distance;
+            return Rs2Tile.getReachableTilesFromTile(start, distance).containsKey(target) || nearUnwalkableGoal;
+        }).orElse(false);
+        if (arrived) {
             return WalkerState.ARRIVED;
         }
         final Pathfinder pathfinder = Rs2PathApi.getPathfinder();
@@ -12180,13 +12219,21 @@ public class Rs2Walker {
         boolean bankTripWhenCacheUnavailable = config == null || config.bankTripWhenCacheUnavailable();
         if (!forceBanking && bankTripWhenCacheUnavailable && Rs2Bank.getBankLiveEpoch() <= 0
                 && System.currentTimeMillis() - routeState.lastBankBootstrapMissAtMs > BANK_BOOTSTRAP_MISS_COOLDOWN_MS) {
-            WalkerState bootstrapState = bootstrapBankMirrorForBankedPathing(distance);
-            if (bootstrapState == WalkerState.EXIT || bootstrapState == WalkerState.UNREACHABLE) {
+            WalkerState bootstrapState = bootstrapBankMirrorForBankedPathing(2);
+            if (bootstrapState == WalkerState.MOVING && routeState.bankBootstrapLocation != null) {
                 return bootstrapState;
             }
+            if (Thread.currentThread().isInterrupted()) return WalkerState.EXIT;
+            if (bootstrapState == WalkerState.EXIT || bootstrapState == WalkerState.UNREACHABLE) {
+                routeState.lastBankBootstrapMissAtMs = System.currentTimeMillis();
+                return continueBankedWalkDirectly(target, distance);
+            }
+            pl = Rs2Player.getWorldLocation();
+            if (pl == null) return WalkerState.MOVING;
         }
         int chebyshevToTarget = pl.distanceTo(target);
-        if (!forceBanking && chebyshevToTarget <= 100) {
+        if (!forceBanking && (config == null || config.useTeleportationItems() != TeleportationItem.INVENTORY_AND_BANK)
+                && chebyshevToTarget <= 100) {
             // Straight-line proximity says nothing about the walkable route: the Shantay gate is
             // ~30 tiles away and ~700 by inventory-only path without a pass. Skipping the compare
             // here meant no missing-item check, so gold for a purchasable gate was never withdrawn
@@ -12213,9 +12260,13 @@ public class Rs2Walker {
         TransportRouteAnalysis comparison = compareRoutes(target);
         WebWalkLog.tmark("compare_done", System.currentTimeMillis() - compareStartedAt, target, pl,
                 "direct=" + comparison.getDirectDistance() + " bank=" + comparison.getBankingRouteDistance());
-        List<Transport> missingTransports = getMissingTransports(getTransportsForDestination(target, true, TransportType.TELEPORTATION_SPELL));
-
-        Map<Integer, Integer> missingItemsWithQuantities = getMissingTransportItemIdsWithQuantities(missingTransports);
+        List<Transport> bankTransports = comparison.getBankLegTransports();
+        List<Transport> missingTransports = getMissingTransports(bankTransports);
+        Optional<Map<Integer, Integer>> withdrawalPlan = planBankWithdrawals(bankTransports);
+        if (!withdrawalPlan.isPresent()) {
+            return continueBankedWalkDirectly(target, distance);
+        }
+        Map<Integer, Integer> missingItemsWithQuantities = withdrawalPlan.get();
         if (!missingTransports.isEmpty()) {
             WebWalkLog.bankWalkDebug("missing_items nTrans={} to={} missingKinds={}",
                     missingTransports.size(), target, missingItemsWithQuantities.size());
@@ -12223,16 +12274,7 @@ public class Rs2Walker {
         // If no missing transport items, go directly
         if (missingItemsWithQuantities.isEmpty() && !forceBanking) {
             WebWalkLog.spInfo("bank_walk | direct_no_missing_items goal={}", target);
-            WalkerState state = walkWithStateInternal(target, distance);
-            if (state == WalkerState.ARRIVED) {
-                WebWalkLog.bankWalkDebug("arrived goal={}", target);
-            } else {
-                WebWalkLog.bankWalkFailed(target, state);
-                setTarget(null, "rs2walker:walkWithBankedTransports:direct-walk-failed");
-                return state;
-
-            }
-            return state;
+            return finishBankedDirectWalk(target, continueBankedWalkDirectly(target, distance));
         } else {
             // Compare routes if we have missing items that could be obtained from bank
             // Use config for minimum bank route savings
@@ -12248,14 +12290,16 @@ public class Rs2Walker {
                     log.info("\n\tUsing banking route: \n\t\tStart: {} -> Bank: {} -> Target: {}",
                             Rs2Player.getWorldLocation(), comparison.getBankLocation(), target);
                     // Handle the complete banking workflow using legacy walkTo approach
-                    return walkWithBankingState(comparison.getBankLocation(), missingItemsWithQuantities, target, distance);
+                    BankedWalkPlan plan = new BankedWalkPlan(target, comparison.getBankLocation(), bankTransports);
+                    routeState.bankedWalkPlan = plan;
+                    return walkWithBankingState(plan, distance);
                 } else {
                     log.warn("\n\tBanking route requested but no accessible bank found, trying direct route");
-                    return walkWithStateInternal(target, distance);
+                    return continueBankedWalkDirectly(target, distance);
                 }
             } else {
                 log.info("\n\tDirect route is more efficient despite missing items or does not meet min savings, traveling directly");
-                return walkWithStateInternal(target, distance);
+                return continueBankedWalkDirectly(target, distance);
             }
         }
 
@@ -12285,8 +12329,8 @@ public class Rs2Walker {
         if (start == null) {
             return WalkerState.MOVING;
         }
-        BankLocation nearestBank = Rs2Bank.getNearestBank(start);
-        if (nearestBank == null || nearestBank.getWorldPoint() == null) {
+        BankLocation nearestBank = routeState.bankBootstrapLocation == null ? Rs2Bank.getNearestBank(start) : null;
+        if (routeState.bankBootstrapLocation == null && (nearestBank == null || nearestBank.getWorldPoint() == null)) {
             // No bank we recognise from here. That is a gap in BankLocation coverage, not a reason to
             // refuse to walk: the bank mirror only unlocks transports that need banked items, and the
             // ordinary route is usually fine without it. Returning EXIT aborted the whole walk, so the
@@ -12297,7 +12341,9 @@ public class Rs2Walker {
             return WalkerState.MOVING;
         }
 
-        WorldPoint bankLocation = nearestBank.getWorldPoint();
+        WorldPoint bankLocation = routeState.bankBootstrapLocation != null
+                ? routeState.bankBootstrapLocation : nearestBank.getWorldPoint();
+        routeState.bankBootstrapLocation = bankLocation;
         WebWalkLog.spInfo("bank_cache_bootstrap | epoch={} start={} bank={}",
                 Rs2Bank.getBankLiveEpoch(), start, bankLocation);
 
@@ -12321,106 +12367,176 @@ public class Rs2Walker {
 
         Rs2Bank.closeBank();
         sleepUntil(() -> !Rs2Bank.isOpen(), 3_000);
-        return WalkerState.ARRIVED;
+        routeState.bankBootstrapLocation = null;
+        return mirrorReady && !Rs2Bank.isOpen() ? WalkerState.ARRIVED : WalkerState.EXIT;
     }
 
 
 
 
 
-    /**
-     * Handles the complete banking workflow using legacy walkTo: walk to bank, open, withdraw items, close, continue to target.
-     * Enhanced version that accepts a map of item IDs with their required quantities and returns boolean.
-     *
-     * @param bankLocation The bank location to visit
-     * @param missingItemsWithQuantities Map of item IDs and their required quantities
-     * @param finalTarget The final destination after banking
-     * @return true if the banking workflow was successful, false otherwise
-     */
-    private static boolean walkWithBanking(WorldPoint bankLocation, Map<Integer, Integer> missingItemsWithQuantities, WorldPoint finalTarget) {
-        return walkWithBankingState(bankLocation, missingItemsWithQuantities, finalTarget, 10)== WalkerState.ARRIVED;
+    static WalkerState finishBankedDirectWalk(WorldPoint target, WalkerState state) {
+        // isWalkCancelled stops movement when walkUntil's interaction condition is met.
+        // Recognize its captured result before reporting; do not run the callback again.
+        WalkCompletionContext completion = walkCompletionContext.get();
+        if (state == WalkerState.EXIT && completion != null && completion.met
+                && Objects.equals(completion.target, target)) {
+            state = WalkerState.ARRIVED;
+        }
+        if (state == WalkerState.ARRIVED) {
+            WebWalkLog.bankWalkDebug("arrived goal={}", target);
+        } else if (state == WalkerState.EXIT) {
+            // Cancellation/logout is already explained by the underlying walk. In particular,
+            // do not clear a new route selected while the old walk was unwinding.
+            WebWalkLog.bankWalkDebug("stopped goal={} state={}", target, state);
+        } else if (state == WalkerState.UNREACHABLE) {
+            WebWalkLog.bankWalkFailed(target, state);
+            if (Objects.equals(currentTarget, target)) {
+                setTarget(null, "rs2walker:walkWithBankedTransports:direct-walk-failed");
+            }
+        }
+        return state;
     }
 
-    /**
-     * Handles the complete banking workflow using walkWithState: walk to bank, open, withdraw items, close, continue to target.
-     * Enhanced version that accepts a map of item IDs with their required quantities and returns WalkerState.
-     *
-     * @param missingItemsWithQuantities Map of item IDs and their required quantities
-     * @param finalTarget The final destination after banking
-     * @return WalkerState indicating the result of the banking workflow
-     */
-    private static WalkerState walkWithBankingState(WorldPoint bankLocation,
-                                                    Map<Integer, Integer> missingItemsWithQuantities,
-                                                    WorldPoint finalTarget,int distance) {
+    private static WalkerState continueBankedWalkDirectly(WorldPoint target, int distance) {
+        if (Thread.currentThread().isInterrupted()) return WalkerState.EXIT;
+        routeState.bankedWalkPlan = new BankedWalkPlan(target, null, List.of());
+        Rs2PathApi.getPathfinderConfig().setUseBankItems(false);
+        Rs2PathApi.getPathfinderConfig().refresh(target);
+        return walkWithStateInternal(target, distance);
+    }
+
+    /** Inventory changes invalidate even a completed path to the same destination. */
+    static void invalidatePathAfterBanking() {
+        synchronized (Rs2PathApi.getPathfinderMutex()) {
+            Pathfinder previous = Rs2PathApi.getPathfinder();
+            if (previous != null) previous.cancel();
+            Future<?> previousFuture = Rs2PathApi.getPathfinderFuture();
+            if (previousFuture != null && !previousFuture.isDone()) previousFuture.cancel(true);
+            Rs2PathApi.setPathfinderFuture(null);
+            Rs2PathApi.setPathfinder(null);
+        }
+    }
+
+    private static final class BankWithdrawalSnapshot {
+        final Map<Integer, Integer> bank = new HashMap<>();
+        final Map<Integer, Integer> inventory = new HashMap<>();
+        final Set<Integer> equipment = new HashSet<>();
+        final Set<Integer> stackable = new HashSet<>();
+        int emptySlots;
+    }
+
+    private static Optional<BankWithdrawalSnapshot> bankWithdrawalSnapshot(Set<Integer> relevantIds) {
+        return Microbot.getClientThread().runOnClientThreadOptional(() -> {
+            BankWithdrawalSnapshot snapshot = new BankWithdrawalSnapshot();
+            Rs2Bank.getAll().filter(item -> item.getQuantity() > 0).forEach(item -> {
+                snapshot.bank.merge(item.getId(), item.getQuantity(), Integer::sum);
+                if (relevantIds.contains(item.getId()) && item.isStackable()) snapshot.stackable.add(item.getId());
+            });
+            Rs2Inventory.items().forEach(item -> snapshot.inventory.merge(item.getId(), item.getQuantity(), Integer::sum));
+            Rs2Equipment.all().forEach(item -> snapshot.equipment.add(item.getId()));
+            snapshot.emptySlots = Rs2Inventory.emptySlotCount();
+            return snapshot;
+        });
+    }
+
+    private static Optional<Map<Integer, Integer>> planBankWithdrawals(List<Transport> transports) {
+        boolean teleportsOnly = Rs2PathApi.getPathfinderConfig().isBankTeleportsOnly();
+        Map<Integer, Integer> legacyWithdrawals = teleportsOnly ? Map.of()
+                : getMissingTransportItemIdsWithQuantities(getMissingTransports(transports));
+        Optional<Map<Runes, Integer>> runePlan = teleportsOnly
+                ? Rs2WalkerBankingPlanner.getMissingSpellRunes(transports) : Optional.of(Map.of());
+        if (!runePlan.isPresent()) return Optional.empty();
+        Map<Runes, Integer> missingRunes = runePlan.get();
+        Set<Integer> relevantIds = transports.stream().flatMap(t -> t.getItemIdRequirements().stream())
+                .flatMap(Set::stream).collect(Collectors.toSet());
+        if (!missingRunes.isEmpty()) {
+            for (Runes rune : Runes.values()) relevantIds.add(rune.getItemId());
+        }
+        relevantIds.addAll(legacyWithdrawals.keySet());
+        Optional<BankWithdrawalSnapshot> snapshot = bankWithdrawalSnapshot(relevantIds);
+        if (!snapshot.isPresent()) return Optional.empty();
+        BankWithdrawalSnapshot items = snapshot.get();
+        Optional<Map<Integer, Integer>> plan;
+        if (teleportsOnly) {
+            // Teleports may use banked items/runes; other route requirements must already be carried.
+            if (getMissingTransports(transports).stream().anyMatch(t -> t.getType() != TransportType.TELEPORTATION_ITEM
+                    && t.getType() != TransportType.TELEPORTATION_SPELL)) {
+                return Optional.empty();
+            }
+            plan = TransportItemWithdrawals.teleports(transports, items.bank, items.inventory, items.equipment)
+                    .flatMap(withdrawals -> TransportItemWithdrawals.addRunes(withdrawals, missingRunes, items.bank));
+        } else {
+            plan = Optional.of(legacyWithdrawals);
+        }
+        return plan.filter(withdrawals -> TransportItemWithdrawals.availableAndFits(
+                withdrawals, items.bank, items.inventory, items.stackable, items.emptySlots));
+    }
+
+    private static WalkerState walkWithBankingState(BankedWalkPlan plan, int distance) {
+        WorldPoint target = plan.getTarget();
+        if (Thread.currentThread().isInterrupted()) return WalkerState.EXIT;
+        // Keep this detour across MOVING callbacks, without comparing a different bank every pass.
+        WalkerState bankWalkResult = walkWithStateInternal(plan.getBank(), 2);
+        if (bankWalkResult == WalkerState.MOVING) return bankWalkResult;
+        if (Thread.currentThread().isInterrupted()) return WalkerState.EXIT;
+        if (bankWalkResult != WalkerState.ARRIVED) return continueBankedWalkDirectly(target, distance);
+
+        boolean success = false;
+        boolean restoreNotes = false;
         try {
-            if (bankLocation == null || finalTarget == null) {
-                log.warn("Cannot perform banking workflow with null locations");
-                return WalkerState.EXIT;
-            }
-            // Step 1: Walk to bank
-            WalkerState bankWalkResult = walkWithStateInternal(bankLocation, distance);
-            if (bankWalkResult != WalkerState.ARRIVED) {
-                log.warn("Failed to arrive at bank at: " + bankLocation + ", state: " + bankWalkResult);
-                return bankWalkResult;
-            }
-            log.info("Arrived at bank location: " + bankLocation);
-            // Step 2: Open bank
             closeWorldMap();
-            if (!Rs2Bank.openBank()) {
-                log.warn("Failed to open bank at: " + bankLocation);
-                return WalkerState.EXIT;
-            }
-            if(!sleepUntil(()-> Rs2Bank.isOpen(), 8000)) {
-                log.warn("Failed to open bank within timeout at: " + bankLocation);
-                return WalkerState.EXIT;
-            }
-
-            // Step 3: Withdraw missing transport items
-            if (!missingItemsWithQuantities.isEmpty()) {
-                log.debug("Withdrawing transport items with quantities: " + missingItemsWithQuantities);
-
-                // Withdraw the correct amount of each unique item
-                for (Map.Entry<Integer, Integer> entry : missingItemsWithQuantities.entrySet()) {
-                    int itemId = entry.getKey();
-                    int amountNeeded = entry.getValue();
-                    int currentCount = Rs2Inventory.count(itemId);
-                    int amountToWithdraw = Math.max(0, amountNeeded );
-
-                    if (amountToWithdraw > 0) {
-                        if (Rs2Bank.hasBankItem(itemId, amountToWithdraw)) {
-                            log.debug("Withdrawing {} x {} (item ID: {})", amountToWithdraw, itemId, itemId);
-                            Rs2Bank.withdrawX(itemId, amountToWithdraw);
-                            sleepUntil(() -> Rs2Inventory.count(itemId) >= currentCount + amountToWithdraw, 3000);
-                        } else {
-                            log.warn("Required transport item {} not found in bank (need {} but bank has less)",
-                                    itemId, amountToWithdraw);
-                        }
-                    } else {
-                        log.debug("Already have enough of item {}: {} (need {})", itemId, currentCount, amountNeeded);
-                    }
+            int epoch = Rs2Bank.getBankLiveEpoch();
+            boolean wasOpen = Rs2Bank.isOpen();
+            if (!Rs2Bank.openBank() || !Rs2Bank.verifyBankMirrorAfterOpen(wasOpen, epoch)) {
+                Microbot.status = "Bank contents unavailable; continuing without a bank detour";
+            } else if (!Thread.currentThread().isInterrupted()) {
+                // Replan from the bank using the live contents: a saved charge variant may have changed.
+                List<Transport> transports = getTransportsForDestination(target, true, TransportType.TELEPORTATION_ITEM);
+                Optional<Map<Integer, Integer>> withdrawals = planBankWithdrawals(transports);
+                if (!withdrawals.isPresent()) {
+                    Microbot.status = "Teleport items unavailable or inventory full; continuing with carried items";
+                } else {
+                    restoreNotes = Rs2Bank.hasWithdrawAsNote();
+                    success = withdrawals.get().isEmpty() || Rs2Bank.setWithdrawAsItem();
+                    success = success && withdrawBankSupplies(withdrawals.get());
                 }
-
-                // Wait a bit for all withdrawals to complete
-                sleepTickJitter(1);
             }
-
-            // Step 4: Close bank
-            Rs2Bank.closeBank();
-            sleepUntil(() -> !Rs2Bank.isOpen(), 3000);
-            if (Rs2Bank.isOpen()) {
-                log.warn("Failed to close bank after withdrawals");
-                return WalkerState.EXIT;
+        } catch (Exception ex) {
+            log.warn("Banked transport withdrawal failed: {}", ex.getMessage());
+        } finally {
+            if (!Thread.currentThread().isInterrupted()) {
+                if (restoreNotes && Rs2Bank.isOpen()) Rs2Bank.setWithdrawAsNote();
+                Rs2Bank.closeBank();
             }
             Rs2PathApi.getPathfinderConfig().setUseBankItems(false);
-            Rs2PathApi.getPathfinderConfig().refresh(finalTarget);
-            // Step 5: Continue to final target
-            log.debug("Banking complete, continuing to final target: " + finalTarget);
-            return walkWithStateInternal(finalTarget, distance);
-
-        } catch (Exception e) {
-            log.error("Error in banking workflow: " + e.getMessage(), e);
-            return WalkerState.EXIT;
         }
+        if (Thread.currentThread().isInterrupted()) return WalkerState.EXIT;
+        if (Rs2Bank.isOpen()) return WalkerState.EXIT;
+        if (!success) {
+            WebWalkLog.spInfo("bank_walk | withdrawal_unavailable; continuing with carried items");
+        }
+        invalidatePathAfterBanking();
+        // No repeated bank trip after a failed/partial withdrawal; eligibility now uses actual inventory.
+        return continueBankedWalkDirectly(target, distance);
+    }
+
+    static boolean withdrawBankSupplies(Map<Integer, Integer> withdrawals) {
+        for (Map.Entry<Integer, Integer> entry : withdrawals.entrySet()) {
+            if (Thread.currentThread().isInterrupted()) return false;
+            int id = entry.getKey();
+            int amount = entry.getValue();
+            int before = Rs2Inventory.itemQuantity(id);
+            // Exact row predicate avoids Rs2Bank's fuzzy ID/name fallback selecting another item.
+            boolean dispatched = Rs2Bank.withdrawX(item -> item.getId() == id, amount);
+            if (!dispatched || !sleepUntil(() -> Rs2Inventory.itemQuantity(id) >= before + amount, 3_000)) {
+                WebWalkLog.spInfo("bank_walk | withdrawal_failed id=" + id + " amount=" + amount
+                        + " before=" + before + " actual=" + Rs2Inventory.itemQuantity(id)
+                        + " dispatched=" + dispatched);
+                return false;
+            }
+        }
+        return true;
     }
 
     public static boolean closeWorldMap() {

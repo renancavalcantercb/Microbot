@@ -90,7 +90,7 @@ import java.util.regex.Pattern;
         description = "Draws the shortest path to a chosen destination on the map (right click a spot on the world map to use)",
         tags = {"pathfinder", "map", "waypoint", "navigation", "microbot"},
         enabledByDefault = true,
-        version = "1.0.2",
+        version = "1.1.3",
         alwaysOn = true
 )
 public class ShortestPathPlugin extends Plugin {
@@ -150,7 +150,8 @@ public class ShortestPathPlugin extends Plugin {
     @Inject
     private ETAOverlayPanel etaOverlayPanel;
 
-    private final WalkingNoticeOverlay walkingNoticeOverlay;
+    @Inject
+    private WalkingNoticeOverlay walkingNoticeOverlay;
 
     @Inject
     private SpriteManager spriteManager;
@@ -223,11 +224,6 @@ public class ShortestPathPlugin extends Plugin {
     @Provides
     public ShortestPathConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(ShortestPathConfig.class);
-    }
-
-    @Inject
-    public ShortestPathPlugin(WalkingNoticeOverlay walkingNoticeOverlay) {
-        this.walkingNoticeOverlay = walkingNoticeOverlay;
     }
 
     @Override

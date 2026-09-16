@@ -278,7 +278,9 @@ public interface ShortestPathConfig extends Config {
             keyName = "useTeleportationItems",
             name = "Use teleportation items",
             description = "Whether to include teleportation items from the player's inventory and equipment.<br>" +
-                    "Options labelled (perm) only use permanent non-charge items.",
+                    "Options labelled (perm) only use permanent non-charge items.<br>" +
+                    "Inventory + Bank can withdraw teleport items or runes for enabled teleport spells when the route saves enough tiles. " +
+                    "Uses the advanced minimum savings and bank cache settings; does not require Walk with banked transports.",
             position = 12,
             section = sectionSettings
     )
@@ -746,7 +748,8 @@ public interface ShortestPathConfig extends Config {
             name = "Walk with banked transports",
             description = "Whether to use the walk with banked transport functionality or the normal walking.<br>" +
                     "This will use banked transports when the path via the bank to grab the transportation items is more efficient, " +
-                    "otherwise it will use the normal pathfinding.",
+                    "otherwise it will use the normal pathfinding.<br>" +
+                    "Includes fares and other transport requirements. Inventory + Bank also works with this disabled, for teleport items and spell runes.",
             position = 1,
             section = sectionAdvanced
     )
@@ -770,7 +773,7 @@ public interface ShortestPathConfig extends Config {
                 keyName = "preferTransportToTarget",
                 name = "Prefer transport to target",
                 description = "Whether to prefer using transports to reach the target instead of walking.<br>" +
-                        "This will only apply when 'Walk with banked transports' is enabled.",
+                        "Applies to Walk with banked transports and Inventory + Bank.",
                 position = 4,
                 section = sectionAdvanced
         )
@@ -796,7 +799,7 @@ public interface ShortestPathConfig extends Config {
             keyName = "maxSimilarTransportDistance",
             name = "Max similar transport distance (tiles)",
             description = "Maximum distance between spell and consumable item teleport destinations to prefer spells over items.<br>" +
-                    "Only applies when 'Walk with banked transports' is enabled. Set to 0 to disable filtering.",
+                    "Applies to Walk with banked transports and Inventory + Bank. Set to 0 to disable filtering.",
             position = 5,
             section = sectionAdvanced
     )
