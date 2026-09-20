@@ -18,8 +18,6 @@ import net.runelite.client.plugins.microbot.questhelper.requirements.Requirement
 import net.runelite.client.plugins.microbot.questhelper.requirements.item.ItemRequirement;
 import net.runelite.client.plugins.microbot.questhelper.steps.*;
 import net.runelite.client.plugins.microbot.questhelper.steps.widget.WidgetHighlight;
-import net.runelite.client.plugins.microbot.shortestpath.ShortestPathPlugin;
-import net.runelite.client.plugins.microbot.shortestpath.ShortestPathScript;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.camera.Rs2Camera;
 import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
@@ -34,6 +32,7 @@ import net.runelite.client.plugins.microbot.util.menu.NewMenuEntry;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.shop.Rs2Shop;
 import net.runelite.client.plugins.microbot.util.tile.Rs2Tile;
+import net.runelite.client.plugins.microbot.util.walker.Rs2PathApi;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 import net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel;
@@ -103,8 +102,6 @@ public class QuestScript extends Script {
 
 
 
-    private static volatile QuestStep lastClearedQuestStep = null;
-    private static volatile long lastObservedUserClearAtMs = 0;
     private static volatile QuestStep lastActiveStep = null;
 
     public static boolean canQuestWalk(QuestStep step) {
@@ -116,25 +113,6 @@ public class QuestScript extends Script {
                 .filter(x -> x instanceof QuestHelperPlugin).findFirst().orElse(null);
         if (plugin != null && plugin.getConfig() != null && !plugin.getConfig().syncWebWalkerWalking()) {
             return true;
-        }
-
-        if (!ShortestPathPlugin.isWalkingEnabled()) {
-            return false;
-        }
-
-        long userClearAt = ShortestPathScript.getLastUserClearAtMs();
-        if (userClearAt > 0) {
-            if (userClearAt != lastObservedUserClearAtMs) {
-                lastObservedUserClearAtMs = userClearAt;
-                lastClearedQuestStep = step;
-            }
-        } else {
-            lastClearedQuestStep = null;
-            lastObservedUserClearAtMs = 0;
-        }
-
-        if (step != null && step == lastClearedQuestStep) {
-            return false;
         }
 
         return true;
@@ -187,7 +165,6 @@ public class QuestScript extends Script {
 
                 if (questStep != lastActiveStep) {
                     lastActiveStep = questStep;
-                    lastClearedQuestStep = null;
                 }
 
                 if (Rs2Dialogue.isInDialogue() && dialogueStartedStep == null)
@@ -338,8 +315,8 @@ public class QuestScript extends Script {
 
                     boolean isInCutscene = Microbot.getVarbitValue(4606) > 0;
                     if (isInCutscene) {
-                        if (ShortestPathPlugin.getMarker() != null)
-                            ShortestPathPlugin.exit();
+                        if (Rs2PathApi.getMarker() != null)
+                            Rs2PathApi.exit();
                         return;
                     }
 
@@ -1403,10 +1380,7 @@ public class QuestScript extends Script {
         valeTotemsSessionWoodType = null;
         obtainItemsPromptInFlight.set(false);
         obtainItemsSessionChoice = null;
-        lastClearedQuestStep = null;
-        lastObservedUserClearAtMs = 0;
         lastActiveStep = null;
-        ShortestPathScript.resetUserClearState();
     }
 
     public boolean applyStep(QuestStep step) {
@@ -1553,11 +1527,11 @@ public class QuestScript extends Script {
 
             for (var tile : Rs2Tile.getWalkableTilesAroundTile(object.getWorldLocation(), unreachableTargetCheckDist)) {
                 if (tileObjects.stream().noneMatch(x -> x.getWorldLocation().equals(tile))) {
-                    if (!walkTo(tile) && ShortestPathPlugin.getPathfinder() == null)
+                    if (!walkTo(tile) && !Rs2PathApi.getActiveRouteStatus().isPresent())
                         return false;
 
-                    sleepUntil(() -> ShortestPathPlugin.getPathfinder() == null || ShortestPathPlugin.getPathfinder().isDone());
-                    if (ShortestPathPlugin.getPathfinder() == null || ShortestPathPlugin.getPathfinder().isDone()) {
+                    sleepUntil(() -> !Rs2PathApi.getActiveRouteStatus().isCalculating());
+                    if (!Rs2PathApi.getActiveRouteStatus().isCalculating()) {
                         unreachableTarget = false;
                         unreachableTargetCheckDist = 1;
                     }
@@ -1595,9 +1569,11 @@ public class QuestScript extends Script {
 
             walkTo(targetTile, 3);
 
-            if (ShortestPathPlugin.getPathfinder() != null) {
-                var path = ShortestPathPlugin.getPathfinder().getPath();
-                if (path.get(path.size() - 1).distanceTo(step.getDefinedPoint().getWorldPoint()) <= 1)
+            var activeRoute = Rs2PathApi.getActiveRouteStatus();
+            if (activeRoute.isPresent()) {
+                var endpoint = activeRoute.getEndpoint();
+                if (endpoint.isPresent()
+                        && endpoint.get().distanceTo(step.getDefinedPoint().getWorldPoint()) <= 1)
                     return false;
             } else
                 return false;

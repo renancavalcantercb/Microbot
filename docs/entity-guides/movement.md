@@ -296,7 +296,60 @@ When a route-following minimap click is outside the minimap clip, fallback click
 
 For adjacent same-plane shortcuts, do not treat any movement away from the origin as success. Some shortcuts, such as stepping stones, can fail and place the player on a fallback tile; once the player is settled away from the expected destination, stop the landing wait and replan from the actual tile.
 
-## 14. Bank detours must preserve MOVING and keep bank items out of the first leg
+## 14. Match transport execution to its interaction mechanism and interface family
+
+Transport rows do not all represent scene-object clicks, and related networks can use different widget groups. Before admitting new transport data, verify that the walker has an execution branch for the row's actual interaction and selects the interface from the origin object ID. Fail closed for unknown object IDs and tightly identify object-less item actions by their exact origin, destination, action, target, and item requirement.
+
+**Why this matters:** Barrows mound entries use a spade inventory action and therefore have object ID `0`; the generic object executor skips them. River Lum and River Dougne canoe stations open different map interfaces, so waiting unconditionally for the Lum map makes every Dougne route time out.
+
+**Pattern to follow:**
+
+```java
+if (isExactItemActionTransport(transport)) {
+    interactRequiredItem();
+    awaitDestination();
+    return finishHandledTransport(transport);
+}
+
+int mapComponent = mapComponentForOriginObject(transport.getObjectId());
+if (mapComponent < 0) {
+    return false;
+}
+```
+
+**Where this applies:** `Rs2Walker.handleTransports`, specialized transport handlers, and shortest-path transport resource additions.
+
+**Defensive check:** Add pure unit tests for exact item-action recognition and for every supported origin-object-to-interface mapping, plus a loader test proving required item and unlock fields survive TSV parsing.
+
+## 15. Apply the same click guards to every route entry point
+
+Direct and fallback scene clicks must validate the projected click area against the viewport on the client thread. Reuse the validated canvas point when dispatching the click. An on-screen tile check alone can still produce a point outside the usable viewport.
+
+Checkpoint handoffs in the main click branch must use the same close/expiry policy as the start-of-pass check. In particular, entering the preclick distance while moving does not bypass the retarget cooldown.
+
+## 16. Scope global interaction recovery across nested door dispatch
+
+When an object or NPC interaction reacts to the global can't-reach flag by starting a walker approach, keep ownership of that recovery on the current thread until the approach returns. Door interactions issued by that nested walk must bypass the outer can't-reach trigger while leaving the global flag and retry counter intact for the original interaction.
+
+**Why this matters:** The legacy walker lock is reentrant. Without scoped ownership, opening a closed door during an object or NPC recovery starts another recovery walk from inside the first one, replaces the route target, and spends the shared retry budget instead of clicking the door.
+
+**Pattern to follow:**
+
+```java
+if (CantReachTargetRecovery.shouldStart(detectionEnabled, cantReachTarget)) {
+    if (CantReachTargetRecovery.walkTo(originalTarget, 2)) {
+        clearCantReachState();
+    }
+}
+```
+
+**Where this applies:** `Rs2GameObject.clickObject`, `Rs2Npc.interact`, `Rs2NpcModel.interact`, legacy walker door dispatch, and any future interaction helper that starts `Rs2Walker.walkTo` in response to the global can't-reach flag.
+
+**Defensive check:** During a recovery route through a closed door, assert that the door click occurs once, the original object or NPC target is passed unchanged to the walker, nested recovery is suppressed, and retry exhaustion still returns failure.
+
+---
+
+## 17. Bank detours must preserve MOVING and keep bank items out of the first leg
 
 A banked walk has an outer destination and an intermediate bank destination. Keep the selected bank across MOVING callbacks and clear it on cancellation. MOVING is not a failed route. Calculate the trip to the bank with carried items only; capture transport requirements from the bank-to-destination leg before restoring normal eligibility. After a failed withdrawal, continue with carried items for the remainder of that walk.
 
@@ -308,7 +361,7 @@ After withdrawal, discard the completed pathfinder and its future before continu
 
 **Defensive check:** `BankedWalkContinuationTest` covers preserving the selected leg and clearing it on cancellation; `BankTeleportationConfigTest` checks bank eligibility by leg and transport type.
 
-## 15. Classify interaction completion before reporting a banked walk failure
+## 18. Classify interaction completion before reporting a banked walk failure
 
 `walkUntil` uses its thread-local completion condition to stop the movement loop with `EXIT`, then returns `ARRIVED` to the caller. A bank wrapper inside that call must recognize the captured `met` flag for the same target before reporting its outcome. Do not evaluate the callback again when reporting, or apply another destination's completion flag.
 

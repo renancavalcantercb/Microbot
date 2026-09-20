@@ -6,6 +6,7 @@ import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
+import net.runelite.client.plugins.microbot.util.input.InputArbiter;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.walker.WalkerState;
 
@@ -71,22 +72,6 @@ public class ShortestPathScript extends Script {
         super.shutdown();
     }
 
-    private static volatile long lastUserClearAtMs = 0;
-    private static volatile String lastUserClearReason = null;
-
-    public static long getLastUserClearAtMs() {
-        return lastUserClearAtMs;
-    }
-
-    public static String getLastUserClearReason() {
-        return lastUserClearReason;
-    }
-
-    public static void resetUserClearState() {
-        lastUserClearAtMs = 0;
-        lastUserClearReason = null;
-    }
-
     public synchronized boolean isWalkingEnabled() {
         return walkingEnabled;
     }
@@ -96,16 +81,10 @@ public class ShortestPathScript extends Script {
             return;
         }
         walkingEnabled = !walkingEnabled;
-        if (walkingEnabled) {
-            resetUserClearState();
-        } else {
-            clearRoute("shortest-path-script:toggle-walking-paused");
-        }
         notice.accept(walkingEnabled ? ManualWalkingNotice.ENABLED : ManualWalkingNotice.PAUSED);
         revision++;
         resetExitRetryState();
         interruptWalk();
-        Rs2Walker.interruptActiveWalk();
         // The old worker must finish before a preview or a replacement walk can own the route.
         if (!walkTaskRunning && triggerWalker != null) {
             refreshPreview();
@@ -126,11 +105,7 @@ public class ShortestPathScript extends Script {
         resetExitRetryState();
         interruptWalk();
         if (point == null) {
-            lastUserClearAtMs = System.currentTimeMillis();
-            lastUserClearReason = stopReason == null ? "shortest-path-script:trigger-null" : stopReason;
             clearRoute(stopReason == null ? "shortest-path-script:trigger-null" : stopReason);
-        } else {
-            resetUserClearState();
         }
         if (!walkTaskRunning && point != null) {
             refreshPreview();
@@ -168,7 +143,8 @@ public class ShortestPathScript extends Script {
     }
 
     synchronized void startWalkTask() {
-        if (stopped || !walkingEnabled || triggerWalker == null || walkTaskRunning || previewPending) {
+        if (stopped || !walkingEnabled || triggerWalker == null || walkTaskRunning || previewPending
+                || InputArbiter.isHuman()) {
             return;
         }
         final long taskRevision = revision;
@@ -191,6 +167,9 @@ public class ShortestPathScript extends Script {
                         && !Thread.currentThread().isInterrupted() && !isLocalPlayerDead() && !isRecentUserStopClear();
                 synchronized (ShortestPathScript.this) {
                     if (taskRevision != revision || stopped) {
+                        return;
+                    }
+                    if (shouldPreserveTargetAfterExit(state, InputArbiter.isHuman())) {
                         return;
                     }
                     if (state == WalkerState.EXIT && retryAllowed && shouldRetryAfterExit(target)) {
@@ -229,7 +208,7 @@ public class ShortestPathScript extends Script {
     }
 
     WalkerState executeWalk(WorldPoint target) {
-        return TeleportationItem.bankWalkingEnabled(config)
+        return config.walkWithBankedTransports()
                 ? Rs2Walker.walkWithBankedTransportsAndState(target, 10, false)
                 : Rs2Walker.walkWithState(target);
     }
@@ -241,6 +220,10 @@ public class ShortestPathScript extends Script {
 
     void onClientThread(Runnable action) {
         Microbot.getClientThread().invokeLater(action);
+    }
+
+    static boolean shouldPreserveTargetAfterExit(WalkerState state, boolean humanOwnsInput) {
+        return state == WalkerState.EXIT && humanOwnsInput;
     }
 
     private boolean shouldRetryAfterExit(WorldPoint target) {

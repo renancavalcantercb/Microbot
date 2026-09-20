@@ -424,6 +424,17 @@ public interface ShortestPathConfig extends Config {
     }
 
     @ConfigItem(
+            keyName = "usePortalNexus",
+            name = "Use Portal Nexus",
+            description = "Include Portal Nexus destinations saved in PoH Web Config. Requires Player-owned-house Teleports.",
+            position = 24,
+            section = sectionSettings
+    )
+    default boolean usePortalNexus() {
+        return true;
+    }
+
+    @ConfigItem(
             keyName = "cancelInstead",
             name = "Cancel instead of recalculating",
             description = "Whether the path should be cancelled rather than recalculated " +
@@ -784,7 +795,7 @@ public interface ShortestPathConfig extends Config {
     @ConfigItem(
             keyName = "interactWithRouteObstaclesAtRange",
             name = "Interact with obstacles at range",
-            description = "Click stairs, ladders and door transports on the route as soon as they are in "
+            description = "Click doors, stairs, ladders, stiles and other object transports as soon as they are in "
                     + "range and let the game walk you there, instead of walking to a chosen approach tile "
                     + "first. Only ever applies to the NEXT obstacle on the route, and falls back to the old "
                     + "behaviour for any obstacle the server declines to path to.",
@@ -921,4 +932,18 @@ public interface ShortestPathConfig extends Config {
     default boolean resetLearnedCollision() {
         return false;
     }
+
+	@ConfigItem(
+			keyName = "plannerSelectionMode",
+			name = "Planner rollout mode",
+			description = "Local is the production default. Shadow compares the pinned upstream planner. "
+					+ "The F2P canary selects only semantically matching upstream routes and automatically "
+					+ "falls back to local; members routes remain local.",
+			position = 3,
+			section = sectionDeveloper,
+			hidden = true
+	)
+	default PlannerSelectionMode plannerSelectionMode() {
+		return PlannerSelectionMode.LOCAL;
+	}
 }

@@ -55,12 +55,14 @@ import net.runelite.client.plugins.microbot.shortestpath.pathfinder.live.LiveCol
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.live.LiveCollisionConflicts;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.live.LiveCollisionOverlay;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.live.LiveCollisionPersistence;
+import net.runelite.client.plugins.microbot.shortestpath.pathfinder.live.LiveCollisionView;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.live.LiveCollisionSnapshot;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.live.LiveRouteValidator;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.SplitFlagMap;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.tile.Rs2Tile;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
+import net.runelite.client.plugins.microbot.util.walker.Rs2TransportPlanningPolicy;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.NavigationButton;
@@ -226,6 +228,13 @@ public class ShortestPathPlugin extends Plugin {
         return configManager.getConfig(ShortestPathConfig.class);
     }
 
+    public ShortestPathPlugin() {
+    }
+
+    public ShortestPathPlugin(WalkingNoticeOverlay walkingNoticeOverlay) {
+        this.walkingNoticeOverlay = walkingNoticeOverlay;
+    }
+
     @Override
     protected void startUp() {
 		cacheConfigValues();
@@ -235,7 +244,9 @@ public class ShortestPathPlugin extends Plugin {
         Map<WorldPoint, Set<Transport>> transports = Transport.loadAllFromResources();
 
         List<Restriction> restrictions = Restriction.loadAllFromResources();
-        pathfinderConfig = new PathfinderConfig(map, transports, restrictions, client, config);
+        pathfinderConfig = new PathfinderConfig(
+                map, transports, restrictions, client, config,
+                Rs2TransportPlanningPolicy.INSTANCE);
 
         panel = injector.getInstance(ShortestPathPanel.class);
         pohPanel = new PohPanel(config);
@@ -432,7 +443,8 @@ public class ShortestPathPlugin extends Plugin {
             "minBankRouteSavings",
             "bankTripWhenCacheUnavailable",
             "preferTransportToTarget",
-            "maxSimilarTransportDistance"
+            "maxSimilarTransportDistance",
+            "plannerSelectionMode"
     );
     private static final String RELOAD_TRANSPORT_DEFINITIONS_KEY = "reloadTransportDefinitions";
     private static final String RESET_LEARNED_COLLISION_KEY = "resetLearnedCollision";
@@ -689,7 +701,7 @@ public class ShortestPathPlugin extends Plugin {
      * decision with magnitudes instead of anecdotes. Runs off the fresh immutable snapshot, never on
      * the pathfinder hot path.
      */
-    private void logLiveStaticConflicts(LiveCollisionSnapshot snapshot) {
+    private void logLiveStaticConflicts(LiveCollisionSnapshot snapshot, LiveCollisionView priorOverlayView) {
         if (staticCollisionData == null) {
             return;
         }
@@ -702,9 +714,14 @@ public class ShortestPathPlugin extends Plugin {
             return;
         }
         lastCollisionConflictLogAtMs = now;
-        WebWalkLog.spInfo("collision_conflict | liveOpensStatic={} liveBlocksStatic={} sealedOpens={} base={},{} — live scene disagrees with the shipped map",
+        LiveCollisionConflicts.Coverage coverage =
+                LiveCollisionConflicts.coverage(snapshot, staticCollisionData, priorOverlayView);
+        WebWalkLog.spInfo("collision_conflict | liveOpensStatic={} liveBlocksStatic={} sealedOpens={} base={},{}"
+                        + " | overlayKnew={}% (known={} new={} changed={}) — live scene disagrees with the shipped map",
                 tally.liveOpensStatic, tally.liveBlocksStatic, tally.liveOpensSealed,
-                snapshot.getBaseX(), snapshot.getBaseY());
+                snapshot.getBaseX(), snapshot.getBaseY(),
+                coverage.alreadyKnownPercent(), coverage.alreadyKnown,
+                coverage.newInformation, coverage.changed);
     }
 
     private void resetLearnedCollision() {
@@ -814,8 +831,12 @@ public class ShortestPathPlugin extends Plugin {
                 return;
             }
 
+            // Pinned BEFORE the merge: this is what we knew on arrival, which is the only way to tell
+            // whether the persistent store spared us a blind first visit. mergeScene replaces regions
+            // rather than mutating them, so this view stays a true "before".
+            final LiveCollisionView priorOverlayView = overlay.current();
             overlay.set(snapshot);
-            logLiveStaticConflicts(snapshot);
+            logLiveStaticConflicts(snapshot, priorOverlayView);
             // Persist the regions this capture just changed so the learned collision survives a restart.
             if (liveCollisionPersistence != null) {
                 liveCollisionPersistence.persist(overlay.drainDirty());
@@ -863,7 +884,26 @@ public class ShortestPathPlugin extends Plugin {
         final CollisionMap map = pathfinderConfig.getMap();
         map.beginSearch(); // pin the freshly captured snapshot for this validation
         final int from = LiveRouteValidator.nearestIndex(path, me);
-        final int blocked = LiveRouteValidator.firstBlockedStep(path, from, LIVE_RECALC_LOOKAHEAD, map);
+        // A door transport joins two adjacent same-plane tiles, so to the validator its step looks
+        // like walking — and while the door is SHUT the edge honestly reads blocked. That is its
+        // normal state, not an obstruction: the walker's executor opens it on contact. Recalculating
+        // here yanked the route out from under the walker while it stood at the door handling it.
+        final int blocked = LiveRouteValidator.firstBlockedStep(path, from, LIVE_RECALC_LOOKAHEAD, map,
+                (a, b) -> {
+                    // The walker's door subsystem has claimed this edge — catalog or not. Quest doors
+                    // (fightarena_door1) are in no catalog, yet the recalc mid-interaction is just as
+                    // wrong there.
+                    if (Rs2Walker.isActiveDoorEdge(a, b)) {
+                        return true;
+                    }
+                    for (Transport t : pathfinderConfig.getTransportsPacked()
+                            .getOrDefault(WorldPointUtil.packWorldPoint(a), java.util.Collections.emptySet())) {
+                        if (b.equals(t.getDestination())) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
         if (blocked >= 0) {
             lastLiveRecalcMs = now;
             log.debug("[LiveCollision] route step {} -> {} now blocked; recalculating",
@@ -1023,6 +1063,15 @@ public class ShortestPathPlugin extends Plugin {
 		return defaultValue;
 	}
 
+	public static PlannerSelectionMode override(
+			String configOverrideKey, PlannerSelectionMode defaultValue) {
+		if (!configOverride.isEmpty()) {
+			return PlannerSelectionMode.fromConfigValue(
+					configOverride.get(configOverrideKey), defaultValue);
+		}
+		return defaultValue;
+	}
+
 	private TileCounter override(String configOverrideKey, TileCounter defaultValue) {
 		if (!configOverride.isEmpty()) {
 			Object value = configOverride.get(configOverrideKey);
@@ -1065,7 +1114,7 @@ public class ShortestPathPlugin extends Plugin {
         }
 
         if (entry.getOption().equals(CLEAR) && entry.getTarget().equals(PATH)) {
-			shortestPathScript.setTriggerWalker(null);
+			shortestPathScript.setTriggerWalker(null, "menu:clear-path");
         }
     }
 

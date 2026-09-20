@@ -37,7 +37,7 @@ public class ShortestPathManualWalkingTest {
             script.setTriggerWalker(null);
             assertNull(script.getTriggerWalker());
             assertFalse(script.isWalkingEnabled());
-            assertEquals(2, script.clears.get());
+            assertEquals(1, script.clears.get());
         }
     }
 

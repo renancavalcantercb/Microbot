@@ -207,3 +207,14 @@ Keep action discovery and dispatch separate: `Rs2Reflection.getGroundItemActions
 
 **Defensive check:** `BankSupplyWithdrawalTest` exercises an empty inventory, an existing rune stack, a partial withdrawal and a rejected action using the real inventory quantity/count methods.
 
+---
+
+## 12. Distinguish a restored bank snapshot from a live bank update
+
+Bank snapshots are saved per RuneScape profile and restored after a restart. The legacy walker's route planning can use `Rs2Bank.hasBankMirrorSnapshot()` to avoid an unnecessary cache-bootstrap bank trip, but restored data must not advance `getBankLiveEpoch()`. Opening the bank and changing its contents refresh the snapshot through `ItemContainerChanged(BANK)`; publish the complete item list before advancing the epoch.
+
+**Why this matters:** Requiring a live epoch for route planning ignores persisted data, while treating restored data as live can allow bank actions to trust an outdated snapshot.
+
+**Where this applies:** `Rs2Bank`, `Rs2BankData`, and the legacy `Rs2Walker` bank-cache bootstrap check.
+
+**Defensive check:** Restart with a saved snapshot and verify it is available with epoch zero, then open the bank and verify the epoch advances and the saved contents match the live container.
