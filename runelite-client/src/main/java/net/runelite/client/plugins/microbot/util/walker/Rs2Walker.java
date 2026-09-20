@@ -11064,9 +11064,15 @@ public class Rs2Walker {
         }
 
         boolean hasMultipleDestination = transport.getDisplayInfo().contains(":");
-        String destination = hasMultipleDestination
+        String rawDestination = hasMultipleDestination
                 ? transport.getDisplayInfo().split(":")[0].trim().toLowerCase()
                 : transport.getDisplayInfo().trim().toLowerCase();
+        if (rawDestination.endsWith(" minigame teleport")) {
+            rawDestination = rawDestination.substring(0, rawDestination.length() - " minigame teleport".length()).trim();
+        } else if (rawDestination.endsWith(" minigame")) {
+            rawDestination = rawDestination.substring(0, rawDestination.length() - " minigame".length()).trim();
+        }
+        final String destination = rawDestination;
 
         Widget selectedWidget = Rs2Widget.getWidget(SELECTED_MINIGAME);
         if (selectedWidget == null) return false;
@@ -12269,6 +12275,28 @@ public class Rs2Walker {
         if (pathfinder != null && !pathfinder.isDone())
             return WalkerState.MOVING;
 
+        int chebyshevToTarget = pl.distanceTo(target);
+        if (!forceBanking && chebyshevToTarget <= 100) {
+            // Straight-line proximity says nothing about the walkable route: the Shantay gate is
+            // ~30 tiles away and ~700 by inventory-only path without a pass. Skipping the compare
+            // here meant no missing-item check, so gold for a purchasable gate was never withdrawn
+            // and the walker silently took the detour. One direct pathfind (cheap for a close,
+            // reachable target) decides whether the short-circuit is safe; a partial path counts
+            // as a detour too, since banking may be exactly what unlocks the blocked transport.
+            List<WorldPoint> directProbePath = getWalkPath(pl, target);
+            int directProbeTiles = getTotalTilesFromPath(directProbePath, target);
+            int directPathCeiling = shortWalkDirectPathCeiling(chebyshevToTarget);
+            if (directProbeTiles <= directPathCeiling) {
+                WebWalkLog.spInfo("bank_walk | skip_compare_short_distance dist={} directTiles={} goal={}",
+                        chebyshevToTarget, directProbeTiles, target);
+                return continueBankedWalkDirectly(target, distance);
+            }
+            WebWalkLog.spInfo("bank_walk | short_distance_detour dist={} directTiles={} ceiling={} goal={} — running bank compare",
+                    chebyshevToTarget,
+                    directProbeTiles == Integer.MAX_VALUE ? "partial" : String.valueOf(directProbeTiles),
+                    directPathCeiling, target);
+        }
+
         boolean bankTripWhenCacheUnavailable = config == null || config.bankTripWhenCacheUnavailable();
         if (!forceBanking && bankTripWhenCacheUnavailable && Rs2Bank.getBankLiveEpoch() <= 0
                 && System.currentTimeMillis() - routeState.lastBankBootstrapMissAtMs > BANK_BOOTSTRAP_MISS_COOLDOWN_MS) {
@@ -12283,28 +12311,6 @@ public class Rs2Walker {
             }
             pl = Rs2Player.getWorldLocation();
             if (pl == null) return WalkerState.MOVING;
-        }
-        int chebyshevToTarget = pl.distanceTo(target);
-        if (!forceBanking && (config == null || config.useTeleportationItems() != TeleportationItem.INVENTORY_AND_BANK)
-                && chebyshevToTarget <= 100) {
-            // Straight-line proximity says nothing about the walkable route: the Shantay gate is
-            // ~30 tiles away and ~700 by inventory-only path without a pass. Skipping the compare
-            // here meant no missing-item check, so gold for a purchasable gate was never withdrawn
-            // and the walker silently took the detour. One direct pathfind (cheap for a close,
-            // reachable target) decides whether the short-circuit is safe; a partial path counts
-            // as a detour too, since banking may be exactly what unlocks the blocked transport.
-            List<WorldPoint> directProbePath = getWalkPath(pl, target);
-            int directProbeTiles = getTotalTilesFromPath(directProbePath, target);
-            int directPathCeiling = shortWalkDirectPathCeiling(chebyshevToTarget);
-            if (directProbeTiles <= directPathCeiling) {
-                WebWalkLog.spInfo("bank_walk | skip_compare_short_distance dist={} directTiles={} goal={}",
-                        chebyshevToTarget, directProbeTiles, target);
-                return walkWithStateInternal(target, distance);
-            }
-            WebWalkLog.spInfo("bank_walk | short_distance_detour dist={} directTiles={} ceiling={} goal={} — running bank compare",
-                    chebyshevToTarget,
-                    directProbeTiles == Integer.MAX_VALUE ? "partial" : String.valueOf(directProbeTiles),
-                    directPathCeiling, target);
         }
         // Check what transport items are needed
         long compareStartedAt = System.currentTimeMillis();

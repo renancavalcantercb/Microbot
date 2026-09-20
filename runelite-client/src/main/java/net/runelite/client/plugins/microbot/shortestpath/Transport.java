@@ -244,7 +244,7 @@ public class Transport {
         if ((value = fieldMap.get("menuOption menuTarget objectID")) != null && !value.trim().isEmpty()) {
             value = value.trim(); // Remove leading/trailing spaces
 
-            // Regex pattern for semicolon-separated values
+            // Regex pattern for semicolon-separated values: Action;Target;123
             String regex = "^([^;]+);([^;]+);(\\d+)$";
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regex);
             java.util.regex.Matcher matcher = pattern.matcher(value);
@@ -255,7 +255,22 @@ public class Transport {
                 name = matcher.group(2).trim();    // Second group: menuTarget (name)
                 objectId = Integer.parseInt(matcher.group(3).trim()); // Third group: objectID
             } else {
-                log.debug("Skipped invalid menuOption/menuTarget/objectID value: {}", value);
+                // Fallback for space-separated format: Action Target 123
+                java.util.regex.Matcher spaceMatcher = java.util.regex.Pattern.compile("^(.+)\\s+(\\d+)$").matcher(value);
+                if (spaceMatcher.matches()) {
+                    String actionAndTarget = spaceMatcher.group(1).trim();
+                    objectId = Integer.parseInt(spaceMatcher.group(2).trim());
+                    String[] parts = actionAndTarget.split("\\s+", 2);
+                    if (parts.length == 2) {
+                        action = parts[0].trim();
+                        name = parts[1].trim();
+                    } else {
+                        action = actionAndTarget;
+                        name = "";
+                    }
+                } else {
+                    log.debug("Skipped invalid menuOption/menuTarget/objectID value: {}", value);
+                }
             }
         }
 
@@ -295,16 +310,25 @@ public class Transport {
             }
         }
 
-        if ((value = fieldMap.get("Item IDs")) != null && !value.trim().isEmpty()) {
+        if ((value = fieldMap.get("Item IDs")) == null) {
+            value = fieldMap.get("Items");
+        }
+        if (value != null && !value.trim().isEmpty()) {
             String[] itemIdsList = value.split(DELIM_MULTI);
             for (String listIds : itemIdsList) {
                 Set<Integer> multiitemList = new HashSet<>();
                 String[] itemIds = listIds.split(DELIM);
                 for (String item : itemIds) {
-                    int itemId = Integer.parseInt(item);
-                    multiitemList.add(itemId);
+                    try {
+                        int itemId = Integer.parseInt(item);
+                        multiitemList.add(itemId);
+                    } catch (NumberFormatException e) {
+                        log.debug("Skipped invalid item ID: {}", item);
+                    }
                 }
-                itemIdRequirements.add(multiitemList);
+                if (!multiitemList.isEmpty()) {
+                    itemIdRequirements.add(multiitemList);
+                }
             }
         }
 
@@ -322,7 +346,10 @@ public class Transport {
             this.duration = Math.max(this.duration, 1);
         }
 
-        if ((value = fieldMap.get("Display info")) != null) {
+        if ((value = fieldMap.get("Display info")) == null) {
+            value = fieldMap.get("Display Info");
+        }
+        if (value != null) {
             this.displayInfo = value;
         }
 
@@ -376,7 +403,10 @@ public class Transport {
             }
         }
 
-        if ((value = fieldMap.get("Varplayers")) != null && !value.trim().isEmpty()) {
+        if ((value = fieldMap.get("Varplayers")) == null) {
+            value = fieldMap.get("VarPlayers");
+        }
+        if (value != null && !value.trim().isEmpty()) {
             for (String varplayerCheck : value.split(DELIM_MULTI)) {
                 if (varplayerCheck.isBlank()) {
                     continue;
@@ -599,11 +629,15 @@ public class Transport {
         addTransports(transports, "minecarts.tsv", TransportType.MINECART);
         addTransports(transports, "spirit_trees.tsv", TransportType.SPIRIT_TREE, 5);
         addTransports(transports, "quetzals.tsv", TransportType.QUETZAL, 6);
+        addTransports(transports, "quetzal_whistle.tsv", TransportType.TELEPORTATION_ITEM);
         addTransports(transports, "teleportation_items.tsv", TransportType.TELEPORTATION_ITEM);
         addTransports(transports, "teleportation_minigames.tsv", TransportType.TELEPORTATION_MINIGAME);
         addTransports(transports, "teleportation_levers.tsv", TransportType.TELEPORTATION_LEVER);
         addTransports(transports, "teleportation_portals.tsv", TransportType.TELEPORTATION_PORTAL);
+        addTransports(transports, "teleportation_portals_poh.tsv", TransportType.TELEPORTATION_PORTAL);
+        addTransports(transports, "teleportation_boxes.tsv", TransportType.TELEPORTATION_PORTAL);
         addTransports(transports, "teleportation_spells.tsv", TransportType.TELEPORTATION_SPELL);
+        addTransports(transports, "teleportation_spells_home.tsv", TransportType.TELEPORTATION_SPELL);
         addTransports(transports, "wilderness_obelisks.tsv", TransportType.WILDERNESS_OBELISK);
         addTransports(transports, "magic_carpets.tsv", TransportType.MAGIC_CARPET);
         addTransports(transports, "hot_air_balloons.tsv", TransportType.HOT_AIR_BALLOON, 7);

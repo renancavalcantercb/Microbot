@@ -288,6 +288,36 @@ public interface QuestHelperConfig extends Config
 		return true;
 	}
 
+	enum QuestWalkerEngine
+	{
+		EFFICIENT_WALKER("Efficient Walker (w/ Web Walker fallback)"),
+		WEB_WALKER("Web Walker (Default)");
+
+		private final String display;
+
+		QuestWalkerEngine(String display)
+		{
+			this.display = display;
+		}
+
+		@Override
+		public String toString()
+		{
+			return display;
+		}
+	}
+
+	@ConfigItem(
+			keyName = "walkerEngine",
+			name = "Walker Engine",
+			description = "Select whether Quest Helper uses Efficient Walker (with automatic Web Walker fallback) or default Web Walker.",
+			section = microbotSection,
+			position = 4
+	)
+	default QuestWalkerEngine walkerEngine() {
+		return QuestWalkerEngine.EFFICIENT_WALKER;
+	}
+
 	@Getter
 	enum ObtainMissingItemsOption
 	{

@@ -82,6 +82,7 @@ public class QuestScript extends Script {
 
     private QuestHelperConfig config;
     private QuestHelperPlugin mQuestPlugin;
+    private final QuestEfficientWalkerBridge efficientWalkerBridge = new QuestEfficientWalkerBridge();
     private static Set<Integer> npcsHandled = new HashSet<>();
     private static Set<Long> objectsHandeled = new HashSet<>();
 
@@ -321,7 +322,7 @@ public class QuestScript extends Script {
                             Microbot.status = "[Quest] In dialogue (manual)";
                             return;
                         }
-                        Rs2Walker.clearWalkingRoute("quest-helper:dialogue-space-step");
+                        clearWalkingRoute("quest-helper:dialogue-space-step");
                         Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
                         return;
                     } else {
@@ -1320,7 +1321,7 @@ public class QuestScript extends Script {
 				lootGroundItem(targetItemId, 10);
 			} else {
 				if (canQuestWalk(questStep)) {
-					Rs2Walker.walkTo(worldPoint, 2);
+					walkTo(worldPoint, 2);
 				}
 			}
 		} else {
@@ -1373,8 +1374,25 @@ public class QuestScript extends Script {
 	@Override
 	public void shutdown() {
 		super.shutdown();
+		efficientWalkerBridge.cancel();
 		reset();
 	}
+
+    private boolean walkTo(WorldPoint destination) {
+        return walkTo(destination, 0);
+    }
+
+    private boolean walkTo(WorldPoint destination, int distance) {
+        if (config != null && config.walkerEngine() == QuestHelperConfig.QuestWalkerEngine.EFFICIENT_WALKER) {
+            return efficientWalkerBridge.walkTo(destination, distance, this::isRunning);
+        }
+        return distance > 0 ? Rs2Walker.walkTo(destination, distance) : Rs2Walker.walkTo(destination);
+    }
+
+    private void clearWalkingRoute(String reason) {
+        Rs2Walker.clearWalkingRoute(reason);
+        efficientWalkerBridge.cancel();
+    }
 
     public static void reset() {
         itemsMissing = new ArrayList<>();
@@ -1429,7 +1447,7 @@ public class QuestScript extends Script {
         // doesn't mean a direct click will succeed. Require line-of-sight too, or we walk instead.
         if (npc != null && npc.getLocalLocation() != null && Rs2Camera.isTileOnScreen(npc.getLocalLocation())
                 && (Microbot.getClient().isInInstancedRegion() || (Rs2Walker.canReach(npc.getWorldLocation()) && npc.hasLineOfSight()))) {
-            Rs2Walker.clearWalkingRoute("quest-helper:npc-step-visible-interact");
+            clearWalkingRoute("quest-helper:npc-step-visible-interact");
 
             if (!canInteract()) {
                 Microbot.status = "[Quest] Arrived at NPC (manual interact)";
@@ -1481,18 +1499,18 @@ public class QuestScript extends Script {
             }
         } else if (npc != null && npc.getLocalLocation() != null && !Rs2Camera.isTileOnScreen(npc.getLocalLocation())) {
             if (canQuestWalk(step)) {
-                Rs2Walker.walkTo(npc.getWorldLocation(), 2);
+                walkTo(npc.getWorldLocation(), 2);
             }
             return false;
         } else if (npc != null && (!npc.hasLineOfSight() || !Rs2Walker.canReach(npc.getWorldLocation()))) {
             if (canQuestWalk(step)) {
-                Rs2Walker.walkTo(npc.getWorldLocation(), 2);
+                walkTo(npc.getWorldLocation(), 2);
             }
             return false;
         } else {
             if (step.getDefinedPoint().getWorldPoint().distanceTo(Rs2Player.getWorldLocation()) > 3) {
                 if (canQuestWalk(step)) {
-                    Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint(), 2);
+                    walkTo(step.getDefinedPoint().getWorldPoint(), 2);
                 }
                 return false;
             } else if (!canInteract()) {
@@ -1535,7 +1553,7 @@ public class QuestScript extends Script {
 
             for (var tile : Rs2Tile.getWalkableTilesAroundTile(object.getWorldLocation(), unreachableTargetCheckDist)) {
                 if (tileObjects.stream().noneMatch(x -> x.getWorldLocation().equals(tile))) {
-                    if (!Rs2Walker.walkTo(tile) && ShortestPathPlugin.getPathfinder() == null)
+                    if (!walkTo(tile) && ShortestPathPlugin.getPathfinder() == null)
                         return false;
 
                     sleepUntil(() -> ShortestPathPlugin.getPathfinder() == null || ShortestPathPlugin.getPathfinder().isDone());
@@ -1575,7 +1593,7 @@ public class QuestScript extends Script {
                     targetTile = stepLocation;
             }
 
-            Rs2Walker.walkTo(targetTile, 3);
+            walkTo(targetTile, 3);
 
             if (ShortestPathPlugin.getPathfinder() != null) {
                 var path = ShortestPathPlugin.getPathfinder().getPath();
@@ -1586,7 +1604,7 @@ public class QuestScript extends Script {
         }
 
         if (hasLineOfSightToObject(object) || object != null && (Rs2Camera.isTileOnScreen(object.getLocalLocation()) || object.getCanvasLocation() != null)) {
-            Rs2Walker.clearWalkingRoute("quest-helper:object-step-interact");
+            clearWalkingRoute("quest-helper:object-step-interact");
 
             if (!canInteract()) {
                 Microbot.status = "[Quest] Arrived at object (manual interact)";
@@ -1606,7 +1624,7 @@ public class QuestScript extends Script {
             objectsHandeled.add(object.getHash());
         } else if (object != null) {
             if (canQuestWalk(step)) {
-                Rs2Walker.walkTo(object.getWorldLocation(), 1);
+                walkTo(object.getWorldLocation(), 1);
             }
             return false;
         }
@@ -1617,7 +1635,7 @@ public class QuestScript extends Script {
     private boolean applyDigStep(DigStep step) {
         if (!canQuestWalk(step) && !Rs2Player.getWorldLocation().equals(step.getDefinedPoint().getWorldPoint()))
             return false;
-        if (!Rs2Walker.walkTo(step.getDefinedPoint().getWorldPoint()))
+        if (!walkTo(step.getDefinedPoint().getWorldPoint()))
             return false;
         else if (!Rs2Player.getWorldLocation().equals(step.getDefinedPoint().getWorldPoint()))
             Rs2Walker.walkFastCanvas(step.getDefinedPoint().getWorldPoint());
@@ -1754,7 +1772,7 @@ public class QuestScript extends Script {
                     if (!canQuestWalk(conditionalStep)) {
                         return false;
                     }
-                    return Rs2Walker.walkTo(nearestUnreachableWalkableTile, 0);
+                    return walkTo(nearestUnreachableWalkableTile, 0);
                 }
             }
         }
@@ -1796,7 +1814,7 @@ public class QuestScript extends Script {
                     return false;
                 }
             }
-            if (!Rs2Walker.walkTo(conditionalStep.getDefinedPoint().getWorldPoint()))
+            if (!walkTo(conditionalStep.getDefinedPoint().getWorldPoint()))
                 return true;
         }
 

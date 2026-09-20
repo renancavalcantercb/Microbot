@@ -20,6 +20,7 @@ import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel;
 import net.runelite.client.plugins.microbot.shortestpath.ShortestPathPlugin;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.Pathfinder;
+import net.runelite.client.plugins.microbot.shortestpath.pathfinder.PathfinderConfig;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.bank.enums.BankLocation;
 import net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint;
@@ -2327,14 +2328,22 @@ public class Rs2Bank {
                 .map(BankLocation::getWorldPoint)
                 .collect(Collectors.toSet());
 
-        if (ShortestPathPlugin.getPathfinderConfig().getTransports().isEmpty()) {
-            ShortestPathPlugin.getPathfinderConfig().refresh();
+        PathfinderConfig config = ShortestPathPlugin.getPathfinderConfig();
+        if (config.getTransports().isEmpty()) {
+            config.refresh();
         }
 
         long originalStart = System.nanoTime();
-        Pathfinder pf = new Pathfinder(ShortestPathPlugin.getPathfinderConfig(), worldPoint, targets);
-        pf.run();
-        List<WorldPoint> path = pf.getPath();
+        boolean prevIgnore = config.isIgnoreTeleportAndItems();
+        config.setIgnoreTeleportAndItems(true);
+        List<WorldPoint> path;
+        try {
+            Pathfinder pf = new Pathfinder(config, worldPoint, targets);
+            pf.run();
+            path = pf.getPath();
+        } finally {
+            config.setIgnoreTeleportAndItems(prevIgnore);
+        }
         long originalTime = System.nanoTime() - originalStart;
 
         if (path.isEmpty()) {
