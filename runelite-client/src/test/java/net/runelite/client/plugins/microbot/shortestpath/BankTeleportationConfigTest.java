@@ -5,6 +5,7 @@ import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -63,12 +64,10 @@ public class BankTeleportationConfigTest {
     @Test
     public void bankSnapshotCannotUnlockAnObstacleInTeleportOnlyMode() throws Exception {
         PathfinderConfig planner = new PathfinderConfig(null, new HashMap<>(), List.of(), null, null);
-        Field carried = PathfinderConfig.class.getDeclaredField("refreshAvailableItemIds");
-        Field bank = PathfinderConfig.class.getDeclaredField("refreshBankItemIds");
-        carried.setAccessible(true);
-        bank.setAccessible(true);
-        carried.set(planner, Set.of());
-        bank.set(planner, Set.of(123));
+        Field quantities = PathfinderConfig.class.getDeclaredField("refreshAvailableItemQuantities");
+        Field runes = PathfinderConfig.class.getDeclaredField("refreshAvailableRuneQuantities");
+        quantities.setAccessible(true);
+        runes.setAccessible(true);
         Method usable = PathfinderConfig.class.getDeclaredMethod("hasRequiredItems", Transport.class);
         usable.setAccessible(true);
         Transport item = new Transport(new WorldPoint(3200, 3200, 0), "Item", TransportType.TELEPORTATION_ITEM,
@@ -76,7 +75,13 @@ public class BankTeleportationConfigTest {
         Transport obstacle = new Transport(new WorldPoint(3200, 3200, 0), "Obstacle", TransportType.TRANSPORT,
                 false, 20, Set.of(Set.of(123)));
         planner.setBankTeleportsOnly(true);
+        // Nothing carried and bank items ineligible: teleport unusable.
+        quantities.set(planner, new HashMap<Integer, Integer>());
+        runes.set(planner, new HashMap<Integer, Integer>());
         assertEquals(false, usable.invoke(planner, item));
+        // Bank snapshot visible: teleport usable, plain obstacle still locked
+        // (teleport-only mode restricts banked items to teleports).
+        quantities.set(planner, new HashMap<>(Map.of(123, 1)));
         planner.setUseBankItems(true);
         assertEquals(true, usable.invoke(planner, item));
         assertEquals(false, usable.invoke(planner, obstacle));

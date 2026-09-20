@@ -1628,11 +1628,43 @@ public class PathfinderConfig {
      * Checks if the player has any of the required equipment and inventory items for the transport
      */
     private boolean hasRequiredItems(Transport transport) {
+        if (isBankRestrictedFor(transport)) {
+            return TransportItemRequirement.selectProviders(
+                    transport.getItemRequirements(),
+                    this::availableCarriedQuantity,
+                    itemId -> availableCarriedQuantity(itemId) > 0,
+                    itemId -> availableCarriedQuantity(itemId) > 0).isPresent();
+        }
         return TransportItemRequirement.selectProviders(
                 transport.getItemRequirements(),
                 this::availableRequirementItemQuantity,
                 itemId -> availableItemQuantity(itemId) > 0,
                 itemId -> availableItemQuantity(itemId) > 0).isPresent();
+    }
+
+    /**
+     * Bank teleports may use banked items/runes; every other transport type must already be
+     * carried when teleport-only bank mode is enabled.
+     */
+    private boolean isBankRestrictedFor(Transport transport) {
+        return bankTeleportsOnly && transport.getType() != TransportType.TELEPORTATION_ITEM
+                && transport.getType() != TransportType.TELEPORTATION_SPELL;
+    }
+
+    /**
+     * Carried-only quantity (inventory + equipment, never bank or refresh snapshots) for
+     * transports that may not use banked items.
+     */
+    private int availableCarriedQuantity(int itemId) {
+        if (itemId == ItemID.CHRONICLE && !hasChronicleCharges()) {
+            return 0;
+        }
+        int quantity = Rs2Inventory.itemQuantity(itemId);
+        Rs2ItemModel equipped = Rs2Equipment.get(itemId);
+        if (equipped != null) {
+            quantity += Math.max(1, equipped.getQuantity());
+        }
+        return quantity;
     }
 
     static boolean meetsItemRequirements(

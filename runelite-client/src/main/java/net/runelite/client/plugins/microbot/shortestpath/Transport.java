@@ -280,22 +280,7 @@ public class Transport {
                 name = matcher.group(2).trim();    // Second group: menuTarget (name)
                 objectId = Integer.parseInt(matcher.group(3).trim()); // Third group: objectID
             } else {
-                // Fallback for space-separated format: Action Target 123
-                java.util.regex.Matcher spaceMatcher = java.util.regex.Pattern.compile("^(.+)\\s+(\\d+)$").matcher(value);
-                if (spaceMatcher.matches()) {
-                    String actionAndTarget = spaceMatcher.group(1).trim();
-                    objectId = Integer.parseInt(spaceMatcher.group(2).trim());
-                    String[] parts = actionAndTarget.split("\\s+", 2);
-                    if (parts.length == 2) {
-                        action = parts[0].trim();
-                        name = parts[1].trim();
-                    } else {
-                        action = actionAndTarget;
-                        name = "";
-                    }
-                } else {
-                    log.debug("Skipped invalid menuOption/menuTarget/objectID value: {}", value);
-                }
+                log.debug("Skipped invalid menuOption/menuTarget/objectID value: {}", value);
             }
         }
 
@@ -395,10 +380,7 @@ public class Transport {
             this.duration = Math.max(this.duration, 1);
         }
 
-        if ((value = fieldMap.get("Display info")) == null) {
-            value = fieldMap.get("Display Info");
-        }
-        if (value != null) {
+        if ((value = fieldMap.get("Display info")) != null) {
             this.displayInfo = value;
         }
 
@@ -726,15 +708,11 @@ public class Transport {
         addTransports(transports, "minecarts.tsv", TransportType.MINECART);
         addTransports(transports, "spirit_trees.tsv", TransportType.SPIRIT_TREE, 5);
         addTransports(transports, "quetzals.tsv", TransportType.QUETZAL, 6);
-        addTransports(transports, "quetzal_whistle.tsv", TransportType.TELEPORTATION_ITEM);
         addTransports(transports, "teleportation_items.tsv", TransportType.TELEPORTATION_ITEM);
         addTransports(transports, "teleportation_minigames.tsv", TransportType.TELEPORTATION_MINIGAME);
         addTransports(transports, "teleportation_levers.tsv", TransportType.TELEPORTATION_LEVER);
         addTransports(transports, "teleportation_portals.tsv", TransportType.TELEPORTATION_PORTAL);
-        addTransports(transports, "teleportation_portals_poh.tsv", TransportType.TELEPORTATION_PORTAL);
-        addTransports(transports, "teleportation_boxes.tsv", TransportType.TELEPORTATION_PORTAL);
         addTransports(transports, "teleportation_spells.tsv", TransportType.TELEPORTATION_SPELL);
-        addTransports(transports, "teleportation_spells_home.tsv", TransportType.TELEPORTATION_SPELL);
         addTransports(transports, "wilderness_obelisks.tsv", TransportType.WILDERNESS_OBELISK);
         addTransports(transports, "magic_carpets.tsv", TransportType.MAGIC_CARPET);
         addTransports(transports, "hot_air_balloons.tsv", TransportType.HOT_AIR_BALLOON, 7);
